@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXO AI</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0604">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+  <canvas id="lienzo" aria-hidden="true"></canvas>
+  <div id="velo" aria-hidden="true"></div>
+  <video id="cam" playsinline muted aria-hidden="true"></video>
+  <main>
+    <header>
+      <details id="pruebas">
+        <summary>Controles</summary>
+        <div id="holoctl">
+          <button type="button" id="holo">Modo holograma (H)</button>
+          <button type="button" id="inv">Invertir orientación</button>
+          <label>Intensidad <input type="range" id="inten" min="0.6" max="4" step="0.1" value="2.4"></label>
+          <label>Partículas <input type="range" id="cant" min="2000" max="16000" step="500" value="10000"></label>
+          <label>Tamaño de vista <input type="range" id="tam" min="0.15" max="0.34" step="0.01" value="0.3"></label>
+          <label>Distancia al centro <input type="range" id="dist" min="0" max="0.12" step="0.005" value="0.04"></label>
+          <label><input type="checkbox" id="vozon" checked> Respuesta en voz</label>
+          <label><input type="checkbox" id="wake"> Llamarlo diciendo «<span id="wpal">nexo</span>»</label>
+          <label>Voz del navegador <select id="vozn"></select></label>
+          <label>Voz <select id="voz"><option value="Navegador">Rápida (navegador)</option><option>Kore</option><option>Puck</option><option>Aoede</option><option>Charon</option><option>Fenrir</option><option>Zephyr</option></select></label>
+          <button type="button" id="clave">Clave de Gemini</button>
+          <button type="button" id="tok">Token del agente</button>
+          <button type="button" id="borrar">Borrar memoria</button>
+          <button type="button" id="inst" style="display:none">Instalar NEXO como app</button>
+        </div>
+      </details>
+    </header>
+    <div id="espacio"></div>
+    <section id="chat" aria-live="polite"></section>
+    <footer>
+      <p id="estado" role="status">Reposo</p>
+      <form id="formulario" autocomplete="off">
+        <button type="button" id="bmic" class="ico" aria-label="Hablar con NEXO" title="Hablar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <button type="button" id="bcam" class="ico" aria-label="Activar cámara" title="Cámara">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        </button>
+        <button type="button" id="bconv" class="ico" aria-label="Modo conversación (manos libres)" aria-pressed="false" title="Conversación manos libres">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>
+        </button>
+        <input id="entrada" type="text" placeholder="Pregúntame o dame una orden" aria-label="Mensaje para NEXO">
+        <button type="submit">Enviar</button>
+      </form>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
