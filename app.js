@@ -403,6 +403,7 @@
     glitch -= glitch * 7 * dt; if (glitch < .02) glitch = 0;
     if (rig) animarRig(dt * velU);
     pasoMov(dt, k, holo ? 1.4 : asp + .6);
+    limpioV += (limpioT - limpioV) * k; if (gm) gm.gain.value += (((escuchando || grabando || ocupado || hablando || pendNav > 0) ? .22 : 1) - gm.gain.value) * Math.min(1, dt * 5);
     crisp += (crispT - crisp) * k; swirl += (swirlT - swirl) * k; rotK += (rotT - rotK) * k;
     var wS = lim((rough - .3) / .7, 0, 1), rx = (ang * wS + Math.sin(ang * .8) * .75 * (1 - wS)) * rotK;
     gl.uniform1f(U.uT, t); gl.uniform1f(U.uAmp, v.amp); gl.uniform1f(U.uRad, v.rad); gl.uniform1f(U.uWave, v.wave * f);
@@ -413,7 +414,7 @@
     var tp = 1 + .25 * (inten - 1);
     gl.disable(gl.SCISSOR_TEST); gl.viewport(0, 0, cv.width, cv.height); gl.clear(gl.COLOR_BUFFER_BIT);
     if (!holo) {
-      gl.uniform1f(U.uAsp, asp); gl.uniform1f(U.uScale, Math.min(.55, asp * .9) * escU); gl.uniform1f(U.uOff, .44); gl.uniform2f(U.uPtr, pp[0], pp[1]);
+      gl.uniform1f(U.uAsp, asp); gl.uniform1f(U.uScale, Math.min(.55, asp * .9) * escU * (1 - .3 * limpioV)); gl.uniform1f(U.uOff, .44 - .2 * limpioV); gl.uniform2f(U.uPtr, pp[0], pp[1]);
       gl.uniform2f(U.uFlip, 1, 1); gl.uniform1f(U.uSwap, 0); gl.uniform1f(U.uPS, tp);
       gl.drawArrays(gl.POINTS, 0, cuenta);
     } else {
@@ -427,13 +428,14 @@
         gl.drawArrays(gl.POINTS, 0, cuenta);
       });
     }
+    try { dibujarViz(dt, now); } catch (er) {}
   }
   requestAnimationFrame(dibujar);
 
   // ---------- Controles ----------
   var bHolo = $("holo"), selVoz = $("voz"), raizEl = document.documentElement;
   function ponerHolo(on) {
-    holo = on; document.body.classList.toggle("holo", on); bHolo.textContent = on ? "Salir del modo holograma (H)" : "Modo holograma (H)";
+    holo = on; document.body.classList.toggle("holo", on); bHolo.textContent = on ? "Salir del modo holograma (H)" : "Modo holograma (H)"; aplicarUI();
     try { var p = on ? (!document.fullscreenElement && raizEl.requestFullscreen && raizEl.requestFullscreen()) : (document.fullscreenElement && document.exitFullscreen()); if (p && p.catch) p.catch(function () {}); } catch (er) {}
   }
   bHolo.addEventListener("click", function () { ponerHolo(!holo); });
@@ -480,6 +482,14 @@
     if (n === "recordar") return recordar(a.dato);
     if (n === "olvidar") return olvidar(a.texto);
     if (n === "palabra_clave") return cambiarPalabra(a.palabra);
+    if (n === "temporizador") return crearTm(a);
+    if (n === "temporizadores") return gestionarTm(a);
+    if (n === "nota_guardar") return notaGuardar(a);
+    if (n === "nota_leer") return notaLeer(a);
+    if (n === "nota_borrar") return notaBorrar(a);
+    if (n === "contacto") return contacto(a);
+    if (n === "musica") return mediaCtl(a);
+    if (n === "pedir_archivo") return pedirArchivo(a);
     if (n === "sentir") { if (E[a.emocion]) { emo = a.emocion; return { ok: true }; } return { ok: false, error: "Emoción desconocida" }; }
     return { ok: false, error: "Herramienta desconocida" };
   }
@@ -541,9 +551,18 @@
     pr.direccion = { type: "string", enum: ["derecha", "izquierda"], description: "Hacia dónde avanza" };
     pr.mira = { type: "string", enum: ["izquierda", "derecha"], description: "Hacia dónde mira el emoji; casi todos los animales y vehículos miran a la izquierda (por defecto)" };
   });
-  NECESITA.bateria = 1; NECESITA.ubicacion = 1;
-  SYS.parts[0].text += " Después de usar una herramienta responde siempre con una o dos frases naturales y con personalidad: cuenta lo que hiciste y añade algo breve, útil o simpático. Nunca respondas solo «Listo». Si piden algo que se mueve (un gato caminando, un pájaro volando, un coche, un corazón latiendo, un pez nadando), usa figura_animada.";
-  SYS.parts[0].text += " Respondes como un asistente de voz con personalidad y calidez: entre una y tres frases naturales, nunca respuestas secas de una sola palabra como «Listo». Tus partículas pueden formar cualquier cosa: para palabras, números o la hora usa escribir_con_particulas o mostrar_hora; para objetos y animales usa forma_con_emoji; para un dibujo propio usa forma_con_trazo; nunca digas que no puedes formar algo. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz y brillo_app. Si piden cambiar el brillo o el volumen del sistema del celular, explica que desde una web no es posible y ofrece cambiar tu propio brillo o el volumen de tu voz. Usa recordar cuando el usuario te cuente algo duradero o te pida recordarlo. Para figuras en movimiento (un gato caminando, un pájaro volando, una pelota rebotando, un coche cruzando, una palabra que se desplaza) usa forma_con_emoji o escribir_con_particulas con el parámetro movimiento, o animar para mover lo que ya está en pantalla. IMPORTANTE: después de usar herramientas siempre cuéntale al usuario, en una o dos frases con personalidad, lo que hiciste o lo que ves; nunca respondas solo «Listo».";
+  TOOLS[0].functionDeclarations.push(
+    { name: "temporizador", description: "Pone un temporizador (horas, minutos, segundos) o una alarma a una hora concreta (hora en 24 h, formato HH:MM).", parameters: P({ horas: { type: "number" }, minutos: { type: "number" }, segundos: { type: "number" }, hora: { type: "string" }, nombre: { type: "string" } }) },
+    { name: "temporizadores", description: "Lista o cancela los temporizadores y alarmas activos.", parameters: P({ accion: { type: "string", enum: ["listar", "cancelar"] }, nombre: { type: "string" } }, ["accion"]) },
+    { name: "nota_guardar", description: "Anota algo (idea, recado, elemento de una lista de compras o tareas). lista = nombre opcional de la lista.", parameters: P({ texto: { type: "string" }, lista: { type: "string" } }, ["texto"]) },
+    { name: "nota_leer", description: "Lee las notas guardadas, opcionalmente solo las de una lista.", parameters: P({ lista: { type: "string" } }) },
+    { name: "nota_borrar", description: "Borra notas que contengan un texto, de una lista, o todas.", parameters: P({ texto: { type: "string" }, todo: { type: "boolean" } }) },
+    { name: "contacto", description: "Llama, escribe por SMS o por WhatsApp a un contacto guardado, o inicia la importación de contactos. NEXO deja un botón en pantalla para confirmar con un toque.", parameters: P({ accion: { type: "string", enum: ["llamar", "sms", "whatsapp", "buscar", "importar"] }, nombre: { type: "string" }, texto: { type: "string", description: "Mensaje para sms o whatsapp" } }, ["accion"]) },
+    { name: "musica", description: "Controla la música y los videos del celular que el usuario elige (elegir abre el selector de archivos).", parameters: P({ accion: { type: "string", enum: ["elegir", "reproducir", "pausar", "continuar", "siguiente", "anterior", "detener", "volumen", "que_suena"] }, busqueda: { type: "string" }, nivel: { type: "number" } }, ["accion"]) },
+    { name: "pedir_archivo", description: "Pide al usuario que elija un archivo (foto, PDF, audio o texto) para que lo veas. motivo = lo que debes hacer con él.", parameters: P({ motivo: { type: "string" } }) }
+  );
+  NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1;
+  SYS.parts[0].text += " Respondes como asistente de voz cálido y con personalidad: una o dos frases cortas y naturales (tres como máximo), sin listas, markdown ni emojis, porque se leen en voz alta; empieza por la respuesta, sin rodeos. Después de usar herramientas cuenta en una frase lo que hiciste; nunca respondas solo «Listo». Tus partículas forman cualquier cosa: palabras, números y la hora con escribir_con_particulas o mostrar_hora; objetos y animales con forma_con_emoji; dibujos propios con forma_con_trazo; cosas que se mueven (un gato caminando, un pájaro volando, un coche) con figura_animada, o con el parámetro movimiento y la herramienta animar. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz, brillo_app, temporizador (también alarmas a una hora), temporizadores (listar o cancelar), notas (nota_guardar, nota_leer, nota_borrar: listas de compras, ideas, apuntes), contacto (llamar, sms, whatsapp; NEXO deja un botón en pantalla y el usuario confirma con un toque), musica (archivos del celular que el usuario elige: elegir, reproducir, pausar, continuar, siguiente, anterior, detener, volumen) y pedir_archivo para que te muestre una foto, PDF, audio o texto. Para música en internet usa abrir_app_movil con youtube o spotify. Si piden el brillo o el volumen del sistema, o abrir el administrador de archivos, explica que desde una web no es posible y ofrece lo que sí puedes. Usa recordar para datos duraderos del usuario (gustos, nombre, rutinas) y las notas para apuntes y listas.";
   function sysAhora() {
     var t = new Date().toLocaleString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/[  ]/g, " ");
     return { parts: [{ text: SYS.parts[0].text + "\nAhora mismo: " + t + "." + (mem.length ? "\nLo que recuerdas del usuario:\n- " + mem.join("\n- ") : "") }] };
@@ -555,13 +574,18 @@
   }
 
   // ---------- Gemini en streaming ----------
+  var acActual = null, cancelado = false;
   var clave = ls("nexo_clave") || "", modeloIdx = 0, hist = cargarHist(), pensar = true;
   function errHTTP(r) { return r.json().catch(function () { return {}; }).then(function (j) { var e = new Error((j.error && j.error.message) || ("HTTP " + r.status)); e.status = r.status; throw e; }); }
   function stream(contents, alTexto, k) {
     k = k || 0; var mi = (modeloIdx + k) % MODELOS.length;
-    var g = { temperature: .8, maxOutputTokens: 1500 }; if (pensar) g.thinkingConfig = { thinkingLevel: "minimal" };
-    return fetch(API + MODELOS[mi] + ":streamGenerateContent?alt=sse", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify({ systemInstruction: sysAhora(), contents: contents, tools: TOOLS, generationConfig: g }) })
+    var g = { temperature: .8, maxOutputTokens: 700 }; if (pensar) g.thinkingConfig = { thinkingLevel: "minimal" };
+    var ac = new AbortController(), idle = null; acActual = ac;
+    function vivo(ms) { clearTimeout(idle); idle = setTimeout(function () { ac.abort(); }, ms); }
+    vivo(9000);
+    return fetch(API + MODELOS[mi] + ":streamGenerateContent?alt=sse", { method: "POST", signal: ac.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify({ systemInstruction: sysAhora(), contents: contents, tools: TOOLS, generationConfig: g }) })
       .then(function (r) {
+        vivo(10000);
         if (!r.ok) return errHTTP(r);
         var rd = r.body.getReader(), dec = new TextDecoder(), bf = "", partes = [];
         function procesar(bloque) {
@@ -574,7 +598,8 @@
         }
         function leer() {
           return rd.read().then(function (x) {
-            if (x.done) { procesar(bf + "\n\n"); if (!partes.length) throw new Error("Sin respuesta del modelo"); return partes; }
+            vivo(10000);
+            if (x.done) { clearTimeout(idle); procesar(bf + "\n\n"); if (!partes.length) throw new Error("Sin respuesta del modelo"); return partes; }
             bf += dec.decode(x.value, { stream: true }).replace(/\r\n/g, "\n"); var i;
             while ((i = bf.indexOf("\n\n")) >= 0) { procesar(bf.slice(0, i)); bf = bf.slice(i + 2); }
             return leer();
@@ -583,6 +608,9 @@
         return leer();
       })
       .catch(function (e) {
+        clearTimeout(idle);
+        if (cancelado) { var ec = new Error("Cancelado"); ec.cancelado = true; throw ec; }
+        if (e.name === "AbortError" || /Failed to fetch|NetworkError|Load failed|network/i.test(e.message || "")) { var e2 = new Error("La conexión con Gemini se cortó o tardó demasiado."); e2.status = 504; e = e2; }
         if (e.status === 400 && pensar && /think/i.test(e.message)) { pensar = false; return stream(contents, alTexto, k); }
         if (e.status === 404 && modeloIdx < MODELOS.length - 1) { modeloIdx++; return stream(contents, alTexto, 0); }
         if ((e.status === 503 || e.status === 500 || e.status === 429 || e.status === 504) && k < MODELOS.length * 2 - 1) {
@@ -596,14 +624,14 @@
   var tm = [];
   function limpiarTm() { tm.forEach(clearTimeout); tm = []; }
   function b64Pcm(b64) { var s = atob(b64), n = s.length >> 1, f = new Float32Array(n); for (var i = 0; i < n; i++) { var x = s.charCodeAt(2 * i) | (s.charCodeAt(2 * i + 1) << 8); if (x >= 32768) x -= 65536; f[i] = x / 32768; } return f; }
-  function detenerVoz() { if (fuente) { try { fuente.onended = null; fuente.stop(); } catch (e) {} fuente = null; } hablando = false; pendNav = 0; if (window.speechSynthesis) speechSynthesis.cancel(); }
+  function detenerVoz() { genG++; colaG = []; tocandoG = false; if (fuente) { try { fuente.onended = null; fuente.stop(); } catch (e) {} fuente = null; } hablando = false; pendNav = 0; if (window.speechSynthesis) speechSynthesis.cancel(); }
   function fin() { if (pendNav > 0 || hablando || streaming || grabando || escuchando || actual === "procesando") return; fijar("reposo"); if (conv) programarEscucha(700); else if (wakeOn) programarWake(900); }
   var vozNav = ls("nexo_vozn") || "", volV = ls("nexo_vol") === null ? 1 : lim(+ls("nexo_vol"), 0, 1), gv = null;
   function vocesEs() { return (window.speechSynthesis ? speechSynthesis.getVoices() : []).filter(function (x) { return /^es/i.test(x.lang); }); }
   function elegirVoz() {
     var vs = vocesEs(); if (!vs.length) return null;
     var s = vs.filter(function (x) { return x.voiceURI === vozNav; })[0]; if (s) return s;
-    function pts(x) { var p = 0; if (/natural|neural|online/i.test(x.name)) p += 6; if (/google/i.test(x.name)) p += 3; if (/es[-_](CO|MX|US|419)/i.test(x.lang)) p += 2; else if (/es[-_]ES/i.test(x.lang)) p += 1; if (x.localService === false) p += 1; return p; }
+    function pts(x) { var p = 0; if (/natural|neural|online/i.test(x.name)) p += 6; if (/google/i.test(x.name)) p += 3; if (/es[-_](CO|MX|US|419)/i.test(x.lang)) p += 2; else if (/es[-_]ES/i.test(x.lang)) p += 1; if (x.localService === true) p += 5; return p; }
     return vs.slice().sort(function (a2, b2) { return pts(b2) - pts(a2); })[0];
   }
   function frase(txt, cb) {
@@ -611,17 +639,36 @@
     var u = new SpeechSynthesisUtterance(txt), mejor = elegirVoz(); if (mejor) u.voice = mejor; u.lang = mejor ? mejor.lang : "es-ES"; u.rate = 1.03; u.pitch = 1; u.volume = volV;
     var cerrado = false; function cerrar() { if (cerrado) return; cerrado = true; pendNav = Math.max(0, pendNav - 1); fin(); if (cb) cb(); }
     u.onboundary = function () { pulso = Math.max(pulso, .7); }; u.onend = u.onerror = cerrar; setTimeout(cerrar, 3500 + txt.length * 110);
-    pendNav++; speechSynthesis.speak(u);
+    pendNav++; try { speechSynthesis.resume(); } catch (er) {} speechSynthesis.speak(u);
   }
-  function hablarGemini(txt) {
-    var a = audio();
-    return fetch(API + TTS + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify({ contents: [{ parts: [{ text: "Di de forma natural, cálida y fluida: " + txt }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: selVoz.value } } } } }) })
-      .then(function (r) { return r.ok ? r.json() : errHTTP(r); })
+  var colaG = [], tocandoG = false, genG = 0;
+  function pedirTTS(txt) {
+    var ctl = new AbortController(), tt = setTimeout(function () { ctl.abort(); }, 9000);
+    return fetch(API + TTS + ":generateContent", { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify({ contents: [{ parts: [{ text: "Di de forma natural, cálida y fluida: " + txt }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: selVoz.value } } } } }) })
+      .then(function (r) { clearTimeout(tt); return r.ok ? r.json() : errHTTP(r); })
       .then(function (j) {
-        var d = j.candidates[0].content.parts[0].inlineData, f = b64Pcm(d.data), m = /rate=(\d+)/.exec(d.mimeType || ""), bf = a.createBuffer(1, f.length, m ? +m[1] : 24000);
-        bf.copyToChannel(f, 0); var s = a.createBufferSource(); s.buffer = bf; s.connect(anS); hablando = true; s.onended = function () { hablando = false; fin(); }; fuente = s; s.start();
-      }).catch(function (e) { console.warn("Voz de Gemini no disponible:", e.message); frase(txt); });
+        var d = j.candidates[0].content.parts[0].inlineData, f = b64Pcm(d.data), m = /rate=(\d+)/.exec(d.mimeType || ""), a = audio(), bf = a.createBuffer(1, f.length, m ? +m[1] : 24000);
+        bf.copyToChannel(f, 0); return bf;
+      }).catch(function (e) { clearTimeout(tt); throw e; });
   }
+  function encolarG(txt) {
+    txt = String(txt || "").trim(); if (!txt) return;
+    var p = pedirTTS(txt); p.catch(function () {});
+    pendNav++; colaG.push({ txt: txt, g: genG, p: p }); if (!tocandoG) siguienteG();
+  }
+  function siguienteG() {
+    var it = colaG.shift(); if (!it) { tocandoG = false; hablando = false; fin(); return; }
+    tocandoG = true;
+    it.p.then(function (bf) {
+      if (it.g !== genG) return;
+      var a = audio(), s = a.createBufferSource(); s.buffer = bf; s.connect(anS); hablando = true; fuente = s;
+      s.onended = function () { if (it.g !== genG) return; hablando = false; pendNav = Math.max(0, pendNav - 1); siguienteG(); }; s.start();
+    }).catch(function (e) {
+      if (it.g !== genG) return; console.warn("Voz de Gemini no disponible:", e && e.message); pendNav = Math.max(0, pendNav - 1);
+      frase(it.txt, function () { if (it.g === genG) siguienteG(); });
+    });
+  }
+  function hablarGemini(txt) { encolarG(txt); }
 
   // ---------- Conversación ----------
   var chat = $("chat"), form = $("formulario"), entrada = $("entrada"), ocupado = false;
@@ -634,12 +681,15 @@
     c.getContext("2d").drawImage(vid, 0, 0, c.width, c.height); return c.toDataURL("image/jpeg", .7).split(",")[1];
   }
   function turno(partes, burbuja, ub) {
-    var contents = hist.concat([{ role: "user", parts: partes }]), ronda = 0, total = "", buffer = "", usarNav = selVoz.value === "Navegador" && $("vozon").checked;
+    var contents = hist.concat([{ role: "user", parts: partes }]), ronda = 0, total = "", buffer = "", usarVoz = $("vozon").checked, hablado = false;
+    function emitir(x) { x = String(x).replace(/[*_`#]/g, ""); if (!x.trim()) return; if (selVoz.value === "Navegador") frase(x); else encolarG(x); }
     function sacar(todo) {
-      if (!usarNav) return;
-      var m; while ((m = /^([\s\S]{8,}?[.!?…])\s/.exec(buffer))) { frase(m[1].replace(/[*_`#]/g, "")); buffer = buffer.slice(m[0].length); }
-      if (buffer.length > 90 && (m = /^([\s\S]{50,}?[,;:])\s/.exec(buffer))) { frase(m[1].replace(/[*_`#]/g, "")); buffer = buffer.slice(m[0].length); }
-      if (todo && buffer.trim()) { frase(buffer.replace(/[*_`#]/g, "")); buffer = ""; }
+      if (!usarVoz) return;
+      var m, re1 = hablado ? /^([\s\S]{8,}?[.!?…])\s/ : /^([\s\S]{12,}?[.!?…:;,])\s/;
+      while ((m = re1.exec(buffer))) { emitir(m[1]); hablado = true; buffer = buffer.slice(m[0].length); re1 = /^([\s\S]{8,}?[.!?…])\s/; }
+      if (!hablado && buffer.length >= 64 && (m = /^([\s\S]{44,}?)\s(?=\S)/.exec(buffer))) { emitir(m[1]); hablado = true; buffer = buffer.slice(m[0].length); }
+      else if (hablado && buffer.length > 90 && (m = /^([\s\S]{50,}?[,;:])\s/.exec(buffer))) { emitir(m[1]); buffer = buffer.slice(m[0].length); }
+      if (todo && buffer.trim()) { emitir(buffer); hablado = true; buffer = ""; }
     }
     var tr = ub ? { buf: "", ok: false } : null;
     function alTexto(d) {
@@ -670,38 +720,43 @@
     }
     return paso();
   }
+  function cancelar() { cancelado = true; if (acActual) { try { acActual.abort(); } catch (e) {} } }
   function enviar(txt, aud, opt) {
     if (ocupado) return;
     if (txt && rapido(txt)) return;
     pararWake();
     if (!clave && !pedirClave()) { msg("e", "Necesito tu clave de Gemini para pensar."); return; }
-    ocupado = true; emo = null; limpiarTm(); detenerVoz(); audio(); streaming = true; fijar("procesando"); pulso = 1.2;
+    ocupado = true; cancelado = false; emo = null; limpiarTm(); detenerVoz(); audio(); streaming = true; fijar("procesando"); pulso = 1.2;
+    var vig = setTimeout(cancelar, 75000);
     var ub = msg("u", txt || "🎤 …");
     var burbuja = msg("n", "…"), partes = [], img = fotograma();
     if (aud) partes.push({ inlineData: { mimeType: aud.mime, data: aud.data } });
     if (txt) partes.push({ text: txt });
     if (aud && !txt) partes.push({ text: "(Mensaje de voz del usuario. Empieza tu respuesta con la transcripción literal entre dobles corchetes, así: [[lo que dijo]], y a continuación respóndele normalmente.)" });
     if (img) partes.push({ inlineData: { mimeType: "image/jpeg", data: img } });
+    if (adjunto) { adjunto.partes.forEach(function (x) { partes.push(x); }); adjunto = null; marcarAdj(); }
     ultTrans = ""; turno(partes, burbuja, aud && !txt ? ub : null).then(function (r) {
-      ocupado = false; streaming = false; r = (r || "Listo.").trim(); burbuja.textContent = r;
+      clearTimeout(vig); ocupado = false; streaming = false; r = (r || "Listo.").trim(); burbuja.textContent = r;
       hist.push({ role: "user", parts: [{ text: txt || ultTrans || "(mensaje de voz)" }] }, { role: "model", parts: [{ text: r }] }); if (hist.length > 16) hist = hist.slice(-16); ls("nexo_hist", JSON.stringify(hist));
       if (!/^(respuesta|feliz|preocupado)$/.test(actual)) fijar(emo || "respuesta"); pulso = 1;
-      if ($("vozon").checked && selVoz.value !== "Navegador") hablarGemini(r.replace(/[*_`#]/g, "")); else tm.push(setTimeout(fin, pendNav ? 20000 : 1500));
+      tm.push(setTimeout(fin, (pendNav || hablando) ? 20000 : 1500));
     }).catch(function (e) {
-      ocupado = false; streaming = false; fijar("error"); pulso = 1; var m = e.message || String(e);
+      clearTimeout(vig); ocupado = false; streaming = false; fijar("error"); pulso = 1; var m = e.message || String(e);
+      if (e.cancelado) m = "Cancelado. Dime de nuevo qué necesitas.";
       if (/API key|API_KEY|permission|403|401/i.test(m)) { clave = ""; ls("nexo_clave", null); m = "La clave de Gemini no es válida. Pulsa Enviar para ponerla de nuevo."; }
       else if (e.status === 503 || /high demand|overloaded/i.test(m)) m = "Los modelos de Gemini están saturados ahora mismo. Inténtalo de nuevo en un minuto."
+      else if (e.status === 504) m = "La conexión con Gemini se cortó o tardó demasiado. Inténtalo de nuevo.";
       else if (e.status === 429) m = "Se alcanzó el límite gratuito de Gemini. Espera un momento e inténtalo otra vez.";
       burbuja.className = "m e"; burbuja.textContent = m; tm.push(setTimeout(function () { fijar("reposo"); if (conv) programarEscucha(300); }, 5000));
     });
   }
   form.addEventListener("submit", function (ev) {
-    ev.preventDefault(); var s = entrada.value.trim(); if (!s) return; entrada.value = "";
+    ev.preventDefault(); var s = entrada.value.trim(); if (!s) { if (ocupado) cancelar(); return; } entrada.value = "";
     if (s.indexOf("/estado ") === 0) { limpiarTm(); var c = s.slice(8).trim().toLowerCase(); msg("n", fijar(c) ? "Estado: " + E[c].n + " (prueba manual)" : "Estado desconocido"); return; }
     enviar(s);
   });
   entrada.addEventListener("input", function () { pulso = Math.max(pulso, .6); if (entrada.value && actual === "reposo") fijar("escucha"); if (!entrada.value && actual === "escucha") fijar("reposo"); });
-  msg("n", "Hola, " + NOMBRE + ". Escríbeme o pulsa el micrófono.");
+  msg("n", ls("nexo_limpio") !== "0" ? "Hola, " + NOMBRE + ". Toca el círculo de abajo y háblame, o di «nexo»." : "Hola, " + NOMBRE + ". Escríbeme o pulsa el micrófono.");
 
   // ---------- Micrófono ----------
   function aWav(bufs, rate) {
@@ -718,8 +773,8 @@
   // ---- Motor 2: grabación + Gemini entiende el audio (si el motor 1 no existe o falla)
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   var motorMic = (ls("nexo_mic") === "grab" || !SR) ? "grab" : "sr";
-  var conv = false, escuchando = false, abriendo = false, sr = null, srCancel = false, sinVoz = 0, wl = null, tEsc = 0, ultTrans = "", piso = .01, umbral = .03;
-  function marcarConv() { var b = $("bconv"); b.classList.toggle("on", conv); b.setAttribute("aria-pressed", conv ? "true" : "false"); }
+  var conv = false, convWake = false, escuchando = false, abriendo = false, sr = null, srCancel = false, sinVoz = 0, wl = null, tEsc = 0, ultTrans = "", piso = .01, umbral = .03;
+  function marcarConv() { var b = $("bconv"); $("orbe").classList.toggle("on", conv); b.classList.toggle("on", conv); b.setAttribute("aria-pressed", conv ? "true" : "false"); }
   function pantalla(on) {
     try {
       if (on && navigator.wakeLock && !wl) navigator.wakeLock.request("screen").then(function (l) { wl = l; l.addEventListener("release", function () { wl = null; }); }).catch(function () {});
@@ -727,7 +782,7 @@
     } catch (e) {}
   }
   document.addEventListener("visibilitychange", function () { if (!document.hidden && conv) { pantalla(true); programarEscucha(500); } });
-  function apagarConv(texto) { if (!conv) return; conv = false; clearTimeout(tEsc); marcarConv(); pantalla(false); if (texto) msg("n", texto); }
+  function apagarConv(texto) { if (!conv) return; conv = false; convWake = false; clearTimeout(tEsc); marcarConv(); pantalla(wakeOn); if (texto) msg("n", texto); if (wakeOn) programarWake(900); }
   function programarEscucha(ms) {
     clearTimeout(tEsc); if (!conv) return;
     tEsc = setTimeout(function () {
@@ -740,7 +795,7 @@
     fijar("reposo");
     if (conv) {
       if (document.hidden) return;
-      if (++sinVoz >= 2) { apagarConv("No te oigo, así que apagué el modo conversación. Pulsa el ícono de ondas para retomarlo."); return; }
+      if (++sinVoz >= 2) { apagarConv(convWake || wakeOn ? "" : "No te oigo, así que apagué el modo conversación. Toca el micrófono para retomarlo."); return; }
       programarEscucha(300); return;
     }
     if (wakeOn) { programarWake(600); return; }
@@ -818,7 +873,7 @@
       if (sr) { srCancel = true; try { sr.abort(); } catch (er) {} } else if (grabando) detenerMic(false);
       return;
     }
-    conv = true; sinVoz = 0; marcarConv(); pantalla(true); audio();
+    conv = true; convWake = false; sinVoz = 0; marcarConv(); pantalla(true); audio();
     msg("n", "Modo conversación activado. Habla cuando quieras; te respondo y sigo escuchando.");
     if (!ocupado) escuchar();
   });
@@ -852,6 +907,18 @@
     var lin = /^(por favor )?(enciende|prende|activa|pon|prender|encender)( la| mi)? linterna( por favor)?$/.test(m) ? 1 : /^(por favor )?(apaga|desactiva|quita|apagar)( la| mi)? linterna( por favor)?$/.test(m) ? 0 : -1;
     if (lin >= 0) { msg("u", s); linterna(!!lin).then(mostrarResultado); return true; }
     if (/^(cuanta bateria (tengo|me queda)|nivel de bateria|cuanta carga (tengo|me queda)|bateria)$/.test(m)) { msg("u", s); bateria().then(mostrarResultado); return true; }
+    if (conv && /^(oye |nexo )?(adios|hasta luego|chao|chau|nos vemos|nada mas|eso es todo|eso seria todo|ya no|gracias nada mas)( nexo| gracias| por ahora)*$/.test(m)) { msg("u", s); apagarConv(); var dsp = "Hasta luego, " + NOMBRE + "."; msg("n", dsp); decir(dsp); return true; }
+    var NUMW = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, quince: 15, veinte: 20, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, media: .5, medio: .5 };
+    var tq = /^(?:oye |nexo |por favor )*(?:ponme |pon |programa |activa |inicia |crea |configura |hazme |dame )?(?:un |una |el )?(?:temporizador|timer|cuenta regresiva) (?:de |por |para |en )?(\d+|[a-z]+)(?: y (media|medio))? ?(segundos?|minutos?|min|horas?)(?: por favor)?$/.exec(m);
+    if (tq && (/^\d+$/.test(tq[1]) || NUMW[tq[1]] !== undefined)) {
+      var cant = (/^\d+$/.test(tq[1]) ? +tq[1] : NUMW[tq[1]]) + (tq[2] ? .5 : 0), un = /^seg/.test(tq[3]) ? 1 : /^h/.test(tq[3]) ? 3600 : 60;
+      msg("u", s); mostrarResultado(crearTm({ segundos: Math.round(cant * un) })); return true;
+    }
+    var mm = /^(?:oye |nexo |por favor )*(pausa|pausar|continua|continuar|reanuda|reanudar|siguiente|proxima|anterior|detener|deten)(?: la| el| esta| este)?(?: cancion| musica| video| tema)?(?: por favor)?$/.exec(m);
+    if (mm && lista.length) {
+      var AC = { pausa: "pausar", pausar: "pausar", continua: "continuar", continuar: "continuar", reanuda: "continuar", reanudar: "continuar", siguiente: "siguiente", proxima: "siguiente", anterior: "anterior", detener: "detener", deten: "detener" };
+      msg("u", s); var rm = mediaCtl({ accion: AC[mm[1]] }); msg(rm.ok === false ? "e" : "n", rm.hecho || rm.error); return true;
+    }
     return false;
   }
 
@@ -936,7 +1003,7 @@
   cv.addEventListener("pointerdown", function () { if (hablando || pendNav) { detenerVoz(); fin(); } });
 
   // ---------- Llamarlo por voz ("Nexo", como "Ok Google") ----------
-  var wakeOn = ls("nexo_wake") === "1", wakeWord = ls("nexo_wp") || "nexo", wakeSR = null, wakeT = 0, wakeDec = 0, wakeFalla = 0;
+  var wakeOn = (ls("nexo_wake") === null ? !!(SR && motorMic === "sr" && window.isSecureContext) : ls("nexo_wake") === "1"), wakeWord = ls("nexo_wp") || "nexo", wakeSR = null, wakeT = 0, wakeDec = 0, wakeFalla = 0;
   function reWake() {
     var w = norm(wakeWord).replace(/[^a-z0-9 ]/g, "").trim() || "nexo", alts = w === "nexo" ? "nexo|nexos|neso|necso|nekso|nexso" : w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp("(^|[\\s,.¿?¡!:;])(" + alts + ")(?=$|[\\s,.¿?¡!:;])");
@@ -957,7 +1024,7 @@
   function despertar(texto) {
     var s = texto.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""), q = reWake().exec(s); if (!q) return;
     var cmd = texto.slice(q.index + q[0].length).replace(/^[\s,.:;¡!¿?]+/, "").trim();
-    pararWake(); campana();
+    pararWake(); campana(); conv = true; convWake = true; sinVoz = 0; marcarConv(); pantalla(true);
     if (cmd.length >= 3) { enviar(cmd, null, { voz: true }); return; }
     var resp = ["Dime.", "Te escucho.", "¿Sí?", "Aquí estoy.", "Dime, ¿qué necesitas?"][(R() * 5) | 0];
     fijar("escucha"); pulso = 1; etiqueta.textContent = resp;
@@ -995,7 +1062,342 @@
     wakeOn = true; ls("nexo_wake", "1"); audio(); pantalla(true);
     msg("n", "Listo. Di «" + wakeWord + "» y te escucho. Mantén la pantalla encendida y esta página abierta."); programarWake(200);
   });
-  if (wakeOn) { msg("n", "Palabra clave activada. Toca la pantalla una vez para empezar a escucharte."); document.addEventListener("pointerdown", function () { if (wakeOn) { pantalla(true); programarWake(200); } }, { once: true }); }
+  document.addEventListener("pointerdown", function () { audio(); if (wakeOn || conv) pantalla(true); }, { once: true });
+  if (wakeOn) {
+    var arrancarWake = function () { if (wakeOn) { pantalla(true); audio(); programarWake(200); } }, pedirTocar = function () { msg("n", "Para llamarme con «" + wakeWord + "», toca la pantalla una vez y acepta el permiso del micrófono."); document.addEventListener("pointerdown", arrancarWake, { once: true }); };
+    try { if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: "microphone" }).then(function (p) { if (p.state === "granted") arrancarWake(); else pedirTocar(); }).catch(pedirTocar); else pedirTocar(); } catch (er) { pedirTocar(); }
+  }
+
+  // =====================================================================
+  // v1.2 — Pantalla limpia, visualizador, voz en cola, temporizadores,
+  // notas, contactos, música/video y archivos
+  // =====================================================================
+  var limpio = ls("nexo_limpio") !== "0", teclado = false, limpioV = 0, limpioT = 0, uiVis = false;
+  var cvz = $("viz"), cz = cvz.getContext("2d"), cvo = $("orb"), co = cvo.getContext("2d");
+  var esp = new Float32Array(64), fz = new Uint8Array(128), rgbCss = "255,160,60", anMed = null, gm = null, ultViz = 0;
+
+  function aplicarUI() {
+    var ui = limpio || holo;
+    document.body.classList.toggle("limpio", ui);
+    document.body.classList.toggle("teclado", teclado);
+    uiVis = ui && !teclado;
+    limpioT = (limpio && !holo && !teclado) ? 1 : 0;
+    var slot = uiVis ? $("slotU") : $("slotF"); if (etiqueta.parentNode !== slot) slot.appendChild(etiqueta);
+    $("limp").checked = limpio; $("bkb").classList.toggle("on", teclado);
+    if (uiVis) refrescarSub();
+  }
+  function tamViz() {
+    var d = Math.min(window.devicePixelRatio || 1, 2);
+    cvz.width = Math.max(2, Math.round(innerWidth * d)); cvz.height = Math.max(2, Math.round(innerHeight * d));
+    cvo.width = cvo.height = Math.round(150 * d);
+  }
+  window.addEventListener("resize", tamViz); tamViz();
+
+  // Espectro: real si suena música o la voz de Gemini; si no, sintético a partir del pulso y del estado
+  function espectro(dt, tt) {
+    var N = esp.length, src = null, i, L;
+    if (med && !med.paused && anMed) { anMed.getByteFrequencyData(fz); src = fz; }
+    else if (hablando && anS) { anS.getByteFrequencyData(fz); src = fz; }
+    if (actual === "escucha") L = .2 + .1 * Math.sin(tt * 3) + Math.min(.6, pulso * .5);
+    else if (actual === "procesando") L = .1;
+    else if (pendNav > 0 || streaming) L = .26 + Math.min(.65, pulso * .8);
+    else L = .05 + .02 * Math.sin(tt * 1.5);
+    for (i = 0; i < N; i++) {
+      var tg;
+      if (src) { tg = Math.min(1, (src[1 + Math.floor(i * 1.4)] / 255) * (1 + i / N * .9)); }
+      else { var ns = .5 + .5 * Math.sin(i * 1.9 + tt * (4 + (i % 7) * .9)) * Math.cos(i * .7 - tt * 2.3); tg = L * (.35 + .65 * ns) * (1 - i / N * .5); }
+      esp[i] += (tg - esp[i]) * Math.min(1, dt * (tg > esp[i] ? 22 : 7));
+    }
+  }
+  // Barras radiales simétricas (graves arriba, agudos abajo), dos pasadas para el resplandor
+  function barras(ctx, cx, cy, r0, rmax, n, lw, rot, alfa, hacia) {
+    var N = esp.length, pasada, i, j, e, len, a, c, s;
+    ctx.lineCap = "round";
+    for (pasada = 0; pasada < 2; pasada++) {
+      ctx.lineWidth = pasada ? lw : lw * 3.2; ctx.strokeStyle = "rgba(" + rgbCss + "," + (pasada ? .95 : .16) * alfa + ")";
+      ctx.beginPath();
+      for (i = 0; i < n; i++) {
+        j = i < n / 2 ? i : n - 1 - i; e = esp[Math.min(N - 1, Math.floor(j / (n / 2) * N))];
+        len = 2 + e * rmax; a = rot + i / n * 6.28318 - 1.5708; c = Math.cos(a); s = Math.sin(a);
+        ctx.moveTo(cx + c * r0, cy + s * r0); ctx.lineTo(cx + c * (r0 + len * hacia), cy + s * (r0 + len * hacia));
+      }
+      ctx.stroke();
+    }
+  }
+  var vfr = 0;
+  function dibujarViz(dt, now) {
+    var W = cvz.width, H = cvz.height, d = W / innerWidth, sec = now / 1000;
+    if (++vfr % 6 === 0) rgbCss = Math.round(v.c[3] * 255) + "," + Math.round(v.c[4] * 255) + "," + Math.round(v.c[5] * 255);
+    cz.clearRect(0, 0, W, H);
+    if (!uiVis) { if (limpioV < .02) return; }
+    espectro(dt, t);
+    var proc = actual === "procesando";
+    if (limpioV > .02 && !holo) {
+      var cx = W / 2, cy = H * (1 - (.44 - .2 * limpioV)) / 2, rs = Math.min(.55, asp * .9) * escU * (1 - .3 * limpioV) * H / 2;
+      var r0 = Math.min(rs * 1.32, W * .36), rmax = r0 * .3, al = limpioV;
+      cz.globalCompositeOperation = "lighter";
+      cz.strokeStyle = "rgba(" + rgbCss + "," + .3 * al + ")"; cz.lineWidth = d; cz.beginPath(); cz.arc(cx, cy, r0 - 7 * d, 0, 6.28318); cz.stroke();
+      cz.setLineDash([2 * d, 11 * d]); cz.lineDashOffset = -sec * 14 * d; cz.strokeStyle = "rgba(" + rgbCss + "," + .22 * al + ")"; cz.beginPath(); cz.arc(cx, cy, r0 + rmax + 12 * d, 0, 6.28318); cz.stroke(); cz.setLineDash([]);
+      barras(cz, cx, cy, r0, rmax, 112, 2.6 * d, 0, al * (proc ? .55 : 1), 1);
+      barras(cz, cx, cy, r0 - 10 * d, rmax * .28, 112, 1.6 * d, 0, al * .5, -1);
+      if (proc) {
+        cz.lineCap = "round"; cz.lineWidth = 3.2 * d; cz.strokeStyle = "rgba(" + rgbCss + "," + .9 * al + ")";
+        for (var k = 0; k < 3; k++) { var a0 = sec * 2.2 + k * 2.0944; cz.beginPath(); cz.arc(cx, cy, r0 + 4 * d, a0, a0 + .9); cz.stroke(); }
+      }
+      cz.globalCompositeOperation = "source-over";
+    }
+    if (uiVis) {
+      var D = cvo.width, cc = D / 2, od = D / 150;
+      co.clearRect(0, 0, D, D); co.globalCompositeOperation = "lighter";
+      barras(co, cc, cc, 33 * od, 28 * od, 48, 2.4 * od, 0, proc ? .55 : 1, 1);
+      if (proc) { co.lineCap = "round"; co.lineWidth = 3 * od; co.strokeStyle = "rgba(" + rgbCss + ",.9)"; for (var q = 0; q < 2; q++) { var a1 = sec * 3 + q * 3.1416; co.beginPath(); co.arc(cc, cc, 36 * od, a1, a1 + 1.1); co.stroke(); } }
+      co.globalCompositeOperation = "source-over";
+    }
+  }
+
+  // Subtítulos grandes: reflejan la última respuesta y lo último que dijiste
+  var tSubR = 0, tFade = 0;
+  function recorte(s) { s = String(s || "").replace(/\s+/g, " ").trim(); if (s === "…") return s; return s.length > 230 ? "…" + s.slice(-210) : s; }
+  function refrescarSub() {
+    var kids = chat.children, i = kids.length - 1, u = null, n = null, ultimoU = false;
+    for (; i >= 0 && (!u || !n); i--) {
+      var c = kids[i];
+      if (c.classList.contains("u")) { if (!u) { u = c; if (!n) ultimoU = true; } } else if (!n) n = c;
+    }
+    $("subu").textContent = u ? recorte(u.textContent) : "";
+    $("subn").textContent = (n && !ultimoU) ? recorte(n.textContent) : "";
+    $("sub").classList.add("vis");
+    clearTimeout(tFade);
+    tFade = setTimeout(function f() { if (ocupado || hablando || pendNav > 0) { tFade = setTimeout(f, 1500); return; } $("sub").classList.remove("vis"); }, 9000);
+  }
+  new MutationObserver(function () { clearTimeout(tSubR); tSubR = setTimeout(refrescarSub, 30); }).observe(chat, { childList: true, subtree: true, characterData: true });
+
+  // Botones sueltos que aparecen cuando hace falta un toque (llamar, elegir archivo...)
+  function chip(texto, fn, id) {
+    var acc = $("acc"), b = document.createElement("button");
+    if (id) { var v0 = acc.querySelector('[data-id="' + id + '"]'); if (v0) v0.remove(); b.setAttribute("data-id", id); }
+    b.type = "button"; b.className = "chip"; b.textContent = texto;
+    b.addEventListener("click", function () { b.remove(); try { fn(); } catch (e) { msg("e", "No pude hacerlo: " + e.message); } });
+    acc.appendChild(b); while (acc.children.length > 3) acc.removeChild(acc.firstChild);
+    var tt = setTimeout(function () { if (b.parentNode) b.remove(); }, 90000); b.addEventListener("click", function () { clearTimeout(tt); });
+    return b;
+  }
+
+  // Teclado y pantalla limpia
+  $("bkb").addEventListener("click", function () { teclado = !teclado; aplicarUI(); if (teclado) setTimeout(function () { entrada.focus(); }, 120); });
+  $("limp").addEventListener("change", function (ev) { limpio = ev.target.checked; ls("nexo_limpio", limpio ? "1" : "0"); aplicarUI(); });
+  $("orbe").addEventListener("click", function () {
+    audio();
+    if (ocupado) { cancelar(); return; }
+    if (hablando || pendNav > 0) { detenerVoz(); fijar("reposo"); if (conv) programarEscucha(150); else escuchar(); return; }
+    if ((escuchando || grabando) && conv) { $("bconv").click(); return; }
+    if (escuchando && sr) { try { sr.stop(); } catch (er) {} return; }
+    if (grabando) { detenerMic(true); return; }
+    $("bconv").click();
+  });
+
+  // Menú "+"
+  function menu(abrir) { $("hoja").classList.toggle("abierta", abrir); }
+  $("bmas").addEventListener("click", function () { audio(); menu(true); });
+  $("hoja").addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("button[data-a]") : null;
+    if (!b && ev.target !== $("hoja")) return; menu(false); if (!b) return;
+    var a = b.getAttribute("data-a");
+    if (a === "teclado") { teclado = true; aplicarUI(); setTimeout(function () { entrada.focus(); }, 120); }
+    else if (a === "archivo") $("fArch").click();
+    else if (a === "media") $("fMedia").click();
+    else if (a === "contactos") importarContactos();
+    else if (a === "tm") msg("n", textoTm());
+    else if (a === "notas") msg("n", textoNotas());
+    else if (a === "piramide") ponerHolo(!holo);
+    else if (a === "controles") { $("pruebas").open = true; }
+  });
+
+  // ---------- Temporizadores y alarmas ----------
+  var tms = []; try { tms = JSON.parse(ls("nexo_tm") || "[]"); if (!Array.isArray(tms)) tms = []; } catch (er) { tms = []; }
+  var tickT = 0, sonando = null;
+  function guardarTm() { ls("nexo_tm", JSON.stringify(tms)); }
+  function fmtDur(ms) {
+    var s = Math.round(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60, p = [];
+    if (h) p.push(h + (h === 1 ? " hora" : " horas")); if (m) p.push(m + (m === 1 ? " minuto" : " minutos")); if (ss && !h) p.push(ss + (ss === 1 ? " segundo" : " segundos"));
+    return p.join(" y ") || "0 segundos";
+  }
+  function crearTm(a) {
+    var ms = 0, hh = "";
+    if (a.hora) {
+      var q = /^(\d{1,2})(?::(\d{2}))?$/.exec(String(a.hora).trim()); if (!q || +q[1] > 23 || +(q[2] || 0) > 59) return { ok: false, error: "La hora debe ser como 07:30 o 18:45 (24 horas)." };
+      var d = new Date(); d.setHours(+q[1], +(q[2] || 0), 0, 0); if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1); ms = d.getTime() - Date.now(); hh = ("0" + q[1]).slice(-2) + ":" + ("0" + (q[2] || "00")).slice(-2);
+    } else ms = ((+a.horas || 0) * 3600 + (+a.minutos || 0) * 60 + (+a.segundos || 0)) * 1000;
+    if (!(ms >= 1000) || ms > 172800000) return { ok: false, error: "Dime una duración válida, por ejemplo 5 minutos." };
+    var it = { id: Date.now() + Math.floor(R() * 1000), fin: Date.now() + ms, nombre: String(a.nombre || "").slice(0, 40), alarma: !!a.hora };
+    tms.push(it); guardarTm(); asegurarTick();
+    return { ok: true, hecho: (a.hora ? "Alarma puesta a las " + hh : "Temporizador de " + fmtDur(ms)) + (it.nombre ? " (" + it.nombre + ")" : "") + ". Deja NEXO abierto para que suene." };
+  }
+  function asegurarTick() {
+    if (tickT) return;
+    tickT = setInterval(function () {
+      var ahora = Date.now(), venc = tms.filter(function (x) { return x.fin <= ahora; });
+      if (!venc.length) { if (!tms.length) { clearInterval(tickT); tickT = 0; } return; }
+      tms = tms.filter(function (x) { return x.fin > ahora; }); guardarTm(); venc.forEach(sonarTm);
+    }, 1000);
+  }
+  function sonarTm(it) {
+    var txt = it.alarma ? "Es la hora de tu alarma" + (it.nombre ? ": " + it.nombre : "") + "." : "Tu temporizador" + (it.nombre ? " de " + it.nombre : "") + " terminó.";
+    msg("n", "⏰ " + txt); fijar("feliz"); pulso = 1.2;
+    var veces = 0; clearInterval(sonando);
+    function toca() { campana(); try { if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (e) {} if (++veces >= 6) { clearInterval(sonando); sonando = null; } }
+    toca(); sonando = setInterval(toca, 1800);
+    decir(txt);
+    chip("⏹ Detener", function () { clearInterval(sonando); sonando = null; try { navigator.vibrate(0); } catch (e) {} }, "alarma");
+  }
+  function textoTm() {
+    if (!tms.length) return "No tienes temporizadores ni alarmas activos.";
+    var ahora = Date.now(); return "Activos: " + tms.map(function (x) { return (x.nombre || (x.alarma ? "alarma" : "temporizador")) + " (faltan " + fmtDur(Math.max(0, x.fin - ahora)) + ")"; }).join("; ") + ".";
+  }
+  function gestionarTm(a) {
+    if (a.accion === "cancelar") {
+      var k = norm(a.nombre || ""), n0 = tms.length; tms = k ? tms.filter(function (x) { return norm(x.nombre).indexOf(k) < 0; }) : [];
+      guardarTm(); if (sonando) { clearInterval(sonando); sonando = null; }
+      return tms.length < n0 ? { ok: true, hecho: "Cancelé " + (n0 - tms.length === 1 ? "el temporizador" : "los temporizadores") + "." } : { ok: false, error: "No encontré ese temporizador." };
+    }
+    return { ok: true, hecho: textoTm() };
+  }
+  if (tms.length) asegurarTick();
+
+  // ---------- Notas y listas ----------
+  var notas = []; try { notas = JSON.parse(ls("nexo_notas") || "[]"); if (!Array.isArray(notas)) notas = []; } catch (er) { notas = []; }
+  function guardarNotas() { notas = notas.slice(-120); ls("nexo_notas", JSON.stringify(notas)); }
+  function notaGuardar(a) {
+    var tx = String(a.texto || "").trim().slice(0, 400); if (tx.length < 2) return { ok: false, error: "¿Qué anoto?" };
+    notas.push({ t: tx, l: String(a.lista || "").trim().toLowerCase().slice(0, 30), f: Date.now() }); guardarNotas();
+    return { ok: true, hecho: "Anotado" + (a.lista ? " en tu lista de " + a.lista : "") + "." };
+  }
+  function filtrarNotas(l) { l = norm(l || ""); return notas.filter(function (n) { return !l || norm(n.l).indexOf(l) >= 0 || norm(n.t).indexOf(l) >= 0; }); }
+  function notaLeer(a) {
+    var xs = filtrarNotas(a.lista).slice(-15);
+    if (!xs.length) return { ok: true, hecho: "No tienes notas" + (a.lista ? " sobre eso" : "") + "." };
+    return { ok: true, notas: xs.map(function (n) { return (n.l ? "[" + n.l + "] " : "") + n.t; }), hecho: "Tienes " + xs.length + (xs.length === 1 ? " nota." : " notas.") };
+  }
+  function notaBorrar(a) {
+    var k = norm(a.texto || ""), n0 = notas.length;
+    if (a.todo) notas = []; else if (!k) return { ok: false, error: "Dime cuál nota borrar." }; else notas = notas.filter(function (n) { return norm(n.t).indexOf(k) < 0 && norm(n.l) !== k; });
+    guardarNotas(); return notas.length < n0 ? { ok: true, hecho: "Borrado." } : { ok: false, error: "No encontré esa nota." };
+  }
+  function textoNotas() { var xs = filtrarNotas("").slice(-12); return xs.length ? "Tus notas:\n" + xs.map(function (n) { return "• " + (n.l ? n.l + ": " : "") + n.t; }).join("\n") : "Todavía no tienes notas."; }
+
+  // ---------- Contactos (se eligen una vez y quedan solo en este celular) ----------
+  var cts = []; try { cts = JSON.parse(ls("nexo_contactos") || "[]"); if (!Array.isArray(cts)) cts = []; } catch (er) { cts = []; }
+  function importarContactos() {
+    if (!(navigator.contacts && navigator.contacts.select)) { var m0 = "Este navegador no permite leer contactos. Funciona en Chrome para Android con la página en https."; msg("e", m0); return Promise.resolve({ ok: false, error: m0 }); }
+    return navigator.contacts.select(["name", "tel"], { multiple: true }).then(function (r) {
+      cts = (r || []).map(function (x) { return { n: (x.name && x.name[0]) || "", t: ((x.tel && x.tel[0]) || "").replace(/[^\d+]/g, "") }; }).filter(function (x) { return x.n && x.t.length >= 6; });
+      ls("nexo_contactos", JSON.stringify(cts));
+      var t0_ = cts.length ? "Guardé " + cts.length + " contactos solo en este celular. Ya puedo llamarlos o escribirles por voz." : "No elegiste ningún contacto."; msg("n", t0_); return { ok: true, hecho: t0_ };
+    }).catch(function (e) { var m1 = "No pude abrir tus contactos: " + ((e && (e.message || e.name)) || "error"); msg("e", m1); return { ok: false, error: m1 }; });
+  }
+  function buscarContacto(nombre) {
+    var k = norm(nombre); if (!k) return [];
+    var ex = cts.filter(function (c) { return norm(c.n) === k; }); if (ex.length) return ex;
+    var toks = k.split(" "), sc = cts.map(function (c) { var cn = norm(c.n), ps = cn.split(" "), s = 0; toks.forEach(function (x) { if (ps.indexOf(x) >= 0) s += 2; else if (cn.indexOf(x) >= 0) s += 1; }); return { c: c, s: s }; }).filter(function (x) { return x.s > 0; }).sort(function (a, b) { return b.s - a.s; });
+    if (!sc.length) return []; var mx = sc[0].s; return sc.filter(function (x) { return x.s === mx; }).map(function (x) { return x.c; });
+  }
+  function contacto(a) {
+    var ac = a.accion || "llamar";
+    if (ac === "importar" || !cts.length) {
+      chip("👤 Elegir contactos", importarContactos, "contactos");
+      return ac === "importar" ? { ok: true, hecho: "Toca el botón «Elegir contactos» y selecciónalos; puedes marcar todos." } : { ok: false, error: "Aún no tengo tus contactos. Toca el botón «Elegir contactos» en pantalla, selecciónalos y vuelve a pedírmelo." };
+    }
+    var r = buscarContacto(a.nombre);
+    if (!r.length) return { ok: false, error: "No encuentro a «" + (a.nombre || "") + "» entre tus contactos." };
+    if (r.length > 1 && norm(r[0].n) !== norm(a.nombre)) return { ok: false, error: "Hay varios que coinciden: " + r.slice(0, 4).map(function (c) { return c.n; }).join(", ") + ". ¿A cuál te refieres?" };
+    var c = r[0], num = c.t, tx = encodeURIComponent(String(a.texto || "")), url, rot;
+    if (ac === "buscar") return { ok: true, hecho: c.n + " está en tus contactos." };
+    if (ac === "whatsapp") { var wn = num.replace("+", ""); if (num.charAt(0) !== "+" && wn.length === 10 && wn.charAt(0) === "3") wn = "57" + wn; url = "https://wa.me/" + wn + (tx ? "?text=" + tx : ""); rot = "💬 WhatsApp a " + c.n; }
+    else if (ac === "sms") { url = "sms:" + num + (tx ? "?body=" + tx : ""); rot = "✉️ Mensaje a " + c.n; }
+    else { url = "tel:" + num; rot = "📞 Llamar a " + c.n; }
+    chip(rot, function () { location.href = url; }, "contacto");
+    setTimeout(function () { try { location.href = url; } catch (e) {} }, 900);
+    return { ok: true, hecho: "Preparé " + (ac === "llamar" ? "la llamada a " : ac === "sms" ? "el mensaje para " : "WhatsApp para ") + c.n + ". Si no se abre sola, toca el botón de la pantalla." };
+  }
+
+  // ---------- Música y video del celular ----------
+  var med = $("med"), lista = [], mIdx = -1, vMed = 1;
+  function cadenaMed() {
+    if (gm) return; var a = audio(), src = a.createMediaElementSource(med);
+    anMed = a.createAnalyser(); anMed.fftSize = 256; gm = a.createGain(); src.connect(anMed); anMed.connect(gm); gm.connect(a.destination);
+  }
+  function esVideo(f) { return /^video\//.test(f.type) || /\.(mp4|webm|mkv|mov|3gp)$/i.test(f.name); }
+  function cargarMedia(files) {
+    var xs = Array.prototype.slice.call(files || []).filter(function (f) { return /^(audio|video)\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|opus|flac|mp4|webm|mkv|mov|3gp)$/i.test(f.name); });
+    if (!xs.length) { msg("e", "Eso no parece música ni video."); return; }
+    lista.forEach(function (it) { try { URL.revokeObjectURL(it.u); } catch (e) {} });
+    lista = xs.map(function (f) { return { n: f.name.replace(/\.[^.]+$/, ""), u: URL.createObjectURL(f), v: esVideo(f) }; });
+    var r = tocar(0); msg("n", "Cargué " + lista.length + (lista.length === 1 ? " archivo. " : " archivos. ") + r.hecho);
+  }
+  function tocar(i) {
+    if (!lista.length) return { ok: false, error: "No hay música cargada." };
+    mIdx = (i + lista.length) % lista.length; var it = lista[mIdx]; cadenaMed(); audio();
+    med.src = it.u; med.classList.toggle("video", it.v); med.volume = vMed;
+    var p = med.play(); if (p && p.catch) p.catch(function (e) { msg("e", "No pude reproducir: " + ((e && (e.message || e.name)) || "error")); });
+    try {
+      if (navigator.mediaSession) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: it.n, artist: "NEXO" });
+        [["play", function () { med.play(); }], ["pause", function () { med.pause(); }], ["nexttrack", function () { tocar(mIdx + 1); }], ["previoustrack", function () { tocar(mIdx - 1); }]].forEach(function (h) { navigator.mediaSession.setActionHandler(h[0], h[1]); });
+      }
+    } catch (e) {}
+    return { ok: true, hecho: "Reproduciendo " + it.n + "." };
+  }
+  ["play", "pause", "ended"].forEach(function (ev) { med.addEventListener(ev, function () { med.classList.toggle("on", med.classList.contains("video") && !med.paused && !med.ended); }); });
+  med.addEventListener("ended", function () { if (lista.length > 1) tocar(mIdx + 1); });
+  med.addEventListener("click", function () { try { if (med.requestFullscreen) med.requestFullscreen(); } catch (e) {} });
+  function pedirMedia() { chip("🎵 Elegir música o video", function () { $("fMedia").click(); }, "media"); return { ok: true, hecho: "Toca el botón «Elegir música o video» y escoge uno o varios archivos de tu celular." }; }
+  function mediaCtl(a) {
+    var ac = a.accion;
+    if (ac === "elegir") return pedirMedia();
+    if (ac === "reproducir") {
+      if (!lista.length) { pedirMedia(); return { ok: false, error: "Aún no hay música cargada. Toca el botón «Elegir música o video» en pantalla." }; }
+      if (a.busqueda) { var k = norm(a.busqueda), i = -1; lista.forEach(function (x, j) { if (i < 0 && norm(x.n).indexOf(k) >= 0) i = j; }); if (i < 0) return { ok: false, error: "No encuentro «" + a.busqueda + "» entre lo cargado: " + lista.slice(0, 6).map(function (x) { return x.n; }).join(", ") + "." }; return tocar(i); }
+      if (med.paused && med.src) { cadenaMed(); audio(); med.play(); return { ok: true, hecho: "Sigo con " + lista[mIdx].n + "." }; }
+      return tocar(mIdx < 0 ? 0 : mIdx);
+    }
+    if (!lista.length) return { ok: false, error: "No hay música cargada." };
+    if (ac === "pausar") { med.pause(); return { ok: true, hecho: "En pausa." }; }
+    if (ac === "continuar") { cadenaMed(); audio(); med.play(); return { ok: true, hecho: "Continúo." }; }
+    if (ac === "siguiente") return tocar(mIdx + 1);
+    if (ac === "anterior") return tocar(mIdx - 1);
+    if (ac === "detener") { med.pause(); med.currentTime = 0; med.classList.remove("on"); return { ok: true, hecho: "Detenida." }; }
+    if (ac === "volumen") { vMed = lim((+a.nivel) / 100, 0, 1); med.volume = vMed; return { ok: true, hecho: "Volumen de la música al " + Math.round(vMed * 100) + " por ciento." }; }
+    if (ac === "que_suena") return { ok: true, hecho: med.paused ? "Ahora no suena nada." : "Suena " + lista[mIdx].n + "." };
+    return { ok: false, error: "No entendí esa acción de música." };
+  }
+  $("fMedia").addEventListener("change", function (ev) { cargarMedia(ev.target.files); ev.target.value = ""; });
+
+  // ---------- Archivos para que NEXO los vea ----------
+  var adjunto = null, pedirArch = "";
+  function marcarAdj() {
+    if (!adjunto) { var v0 = $("acc").querySelector('[data-id="adj"]'); if (v0) v0.remove(); return; }
+    var b = chip("📎 " + adjunto.nombre.slice(0, 24) + " ✕", function () { adjunto = null; }, "adj"); b.title = "Toca para quitar el archivo";
+  }
+  function leerArchivo(f) {
+    if (!f) return;
+    if (f.size > 12 * 1048576) { msg("e", "Ese archivo pesa demasiado (máximo 12 MB)."); return; }
+    var esTxt = /^text\//.test(f.type) || /\.(txt|md|csv|json|log|js|py|html|css|xml|ini|yaml|yml)$/i.test(f.name), rd = new FileReader();
+    rd.onerror = function () { msg("e", "No pude leer ese archivo."); };
+    rd.onload = function () {
+      var partes;
+      if (esTxt) partes = [{ text: "Contenido del archivo «" + f.name + "»:\n" + String(rd.result).slice(0, 40000) }];
+      else if (/^(image|audio)\//.test(f.type) || f.type === "application/pdf") partes = [{ inlineData: { mimeType: f.type, data: String(rd.result).split(",")[1] } }, { text: "(Archivo adjunto: «" + f.name + "»)" }];
+      else { msg("e", "Todavía no sé leer ese tipo de archivo (" + (f.type || "desconocido") + "). Prueba con foto, PDF, audio o texto."); return; }
+      adjunto = { nombre: f.name, partes: partes };
+      if (pedirArch) { var t1 = pedirArch; pedirArch = ""; enviar(t1); }
+      else { marcarAdj(); msg("n", "Recibí «" + f.name + "». Dime qué quieres que haga con él."); }
+    };
+    if (esTxt) rd.readAsText(f); else rd.readAsDataURL(f);
+  }
+  $("fArch").addEventListener("change", function (ev) { leerArchivo(ev.target.files && ev.target.files[0]); ev.target.value = ""; });
+  function pedirArchivo(a) { pedirArch = String(a.motivo || "Mira este archivo y cuéntame qué es."); chip("📎 Elegir archivo", function () { $("fArch").click(); }, "arch"); return { ok: true, hecho: "Toca el botón «Elegir archivo» y escoge una foto, PDF, audio o texto." }; }
+
+  aplicarUI();
 
   // ---------- App instalable ----------
   var instalar = null;
