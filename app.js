@@ -1,4 +1,4 @@
-// NEXO AI v0.9 — holograma estilo Jarvis con IA (Gemini en streaming), voz, micrófono, cámara y agente local del PC.
+// NEXO AI v1.0 — holograma estilo Jarvis con IA (Gemini en streaming), voz, micrófono, cámara y agente local del PC.
 (function () {
   "use strict";
   var NOMBRE = "Anyel";
@@ -63,7 +63,7 @@
   var VS = [
     "attribute vec2 aR;attribute vec3 aS,aT;",
     "uniform float uT,uAsp,uScale,uAmp,uRad,uWave,uPulse,uDPR,uSwap,uPS,uGlitch,uMorph,uRough,uOff,uCrisp,uSwirl;",
-    "uniform vec2 uRot,uPtr,uFlip;uniform vec3 uC1,uC2,uC3;",
+    "uniform vec2 uRot,uPtr,uFlip,uMS;uniform vec3 uC1,uC2,uC3,uMV;uniform vec4 uMA;uniform float uPh;",
     "varying vec3 vC;varying float vA;",
     "void main(){",
     " float t=uT;",
@@ -71,6 +71,13 @@
     " vec3 d0=mix(aS,aT,m);",
     " float sw=t*(.25+.3*uAmp)*(1.3-length(d0.xz))*uSwirl;float cs=cos(sw),sn=sin(sw);",
     " vec3 d=vec3(cs*d0.x-sn*d0.z,d0.y,sn*d0.x+cs*d0.z);",
+    " float lw=smoothstep(.05,-.55,d.y);",
+    " d.x+=uMA.x*lw*sin(uPh+d.x*4.)*.2;",
+    " d.y+=uMA.x*lw*max(0.,cos(uPh+d.x*4.))*.06;",
+    " d.y+=uMA.y*abs(sin(uPh))*.1;",
+    " float fl=max(smoothstep(.1,.7,abs(d.x)),smoothstep(.1,.6,d.y)*.7);",
+    " d.y+=uMA.z*sin(uPh)*.22*fl;",
+    " d.y+=uMA.w*sin(uPh+d.x*5.)*.1*(.4+.6*abs(d.x));",
     " vec3 w=vec3(sin(d.y*2.6+t*.55+aR.y*6.283),sin(d.z*2.4-t*.47+aR.y*4.),sin(d.x*2.8+t*.4+aR.y*5.))",
     "  +.5*vec3(sin(d.z*5.1+t*.9),sin(d.x*4.7-t*.8),sin(d.y*5.3+t*.7));",
     " float shell=.82+uRough*.5*aR.x*aR.x*aR.x+(1.-uRough)*.1*aR.x;",
@@ -78,11 +85,13 @@
     " float pulse=1.+uPulse*.1+uWave*.05*sin(t*6.5+d.y*4.+aR.y*2.);",
     " vec3 p=d*uRad*shell*pulse+w*.07*uAmp*(1.-.8*uCrisp);",
     " p+=normalize(d+vec3(.001))*uPulse*.45*step(.965,aR.y);",
+    " p.xy*=uMS;",
+    " float cz=cos(uMV.z),sz=sin(uMV.z);p.xy=vec2(p.x*cz-p.y*sz,p.x*sz+p.y*cz);",
     " float cy=cos(uRot.x),sy=sin(uRot.x),cx=cos(uRot.y),sx=sin(uRot.y);",
     " p=vec3(p.x*cy+p.z*sy,p.y,-p.x*sy+p.z*cy);",
     " p=vec3(p.x,p.y*cx-p.z*sx,p.y*sx+p.z*cx);",
     " float pe=1.7/(2.4-p.z);",
-    " vec2 s=p.xy*pe*uScale+vec2(0.,uOff);",
+    " vec2 s=p.xy*pe*uScale+vec2(uMV.x,uOff+uMV.y);",
     " vec2 sd=s-uPtr;float dist=length(sd);",
     " s+=sd/(dist+.001)*exp(-dist*dist*7.)*.1;",
     " vec2 q=vec2(s.x/uAsp,s.y);",
@@ -105,7 +114,7 @@
   function subir() {
     var d = new Float32Array(MAX * 8);
     for (var i = 0; i < MAX; i++) { d[i * 8] = rnd[i * 2]; d[i * 8 + 1] = rnd[i * 2 + 1]; d.set(src.subarray(i * 3, i * 3 + 3), i * 8 + 2); d.set(tgt.subarray(i * 3, i * 3 + 3), i * 8 + 5); }
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf); cpu = d; gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
   }
   function iniciar() {
     var vs = compilar(gl.VERTEX_SHADER, VS), fs = compilar(gl.FRAGMENT_SHADER, FS);
@@ -114,7 +123,7 @@
     if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(pr)); return false; }
     gl.useProgram(pr); buf = gl.createBuffer(); subir();
     [["aR", 2, 0], ["aS", 3, 8], ["aT", 3, 20]].forEach(function (a) { var l = gl.getAttribLocation(pr, a[0]); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, a[1], gl.FLOAT, false, 32, a[2]); });
-    ["uT","uAsp","uScale","uAmp","uRad","uWave","uPulse","uDPR","uSwap","uPS","uGlitch","uMorph","uRough","uOff","uCrisp","uSwirl","uRot","uPtr","uFlip","uC1","uC2","uC3","uBr","uInt"].forEach(function (n) { U[n] = gl.getUniformLocation(pr, n); });
+    ["uT","uAsp","uScale","uAmp","uRad","uWave","uPulse","uDPR","uSwap","uPS","uGlitch","uMorph","uRough","uOff","uCrisp","uSwirl","uMA","uMV","uMS","uPh","uRot","uPtr","uFlip","uC1","uC2","uC3","uBr","uInt"].forEach(function (n) { U[n] = gl.getUniformLocation(pr, n); });
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.clearColor(0, 0, 0, 0);
     return true;
   }
@@ -123,9 +132,46 @@
   var asp = 1, dpr = 1;
   function ajustar() { if (!gl) return; dpr = Math.min(window.devicePixelRatio || 1, 2); cv.width = Math.max(2, Math.round(cv.clientWidth * dpr)); cv.height = Math.max(2, Math.round(cv.clientHeight * dpr)); asp = cv.width / cv.height; gl.viewport(0, 0, cv.width, cv.height); }
   window.addEventListener("resize", ajustar); ajustar();
+  var mo = { tipo: "", vel: 1, dir: 1, mira: -1, t: 0 }, mc = { tx: 0, ty: 0, rz: 0, sx: 1, sy: 1, w: 0, b: 0, f: 0, v: 0, ph: 0 }, mtimer = 0;
+  var MOVS = { caminar: 1, correr: 1, volar: 1, nadar: 1, cruzar: 1, saltar: 1, rebotar: 1, girar: 1, latir: 1, flotar: 1, bailar: 1, balancear: 1, orbitar: 1, temblar: 1 };
+  function iniciarMov(o) {
+    o = o || {}; var k = norm(o.movimiento || "");
+    clearTimeout(mtimer);
+    if (!k || k === "ninguno" || k === "detener" || k === "parar" || k === "quieto") { mo.tipo = ""; return { ok: true, hecho: "Detuve el movimiento." }; }
+    if (!MOVS[k]) return { ok: false, error: "Movimiento no disponible. Opciones: " + Object.keys(MOVS).join(", ") + ", ninguno." };
+    mo.tipo = k; mo.vel = lim(o.velocidad || 1, .3, 3); mo.dir = /izq/.test(norm(o.direccion || "")) ? -1 : 1; mo.mira = /der/.test(norm(o.mira || "")) ? 1 : -1; mo.t = 0; mo.esc = +o.escala || 0;
+    if (o.segundos > 0) mtimer = setTimeout(function () { mo.tipo = ""; }, Math.min(o.segundos, 600) * 1000);
+    return { ok: true };
+  }
+  function pasoMov(dt, k, rango) {
+    var T = mo.tipo, t = mo.t += dt * mo.vel, o = { tx: 0, ty: 0, rz: 0, sx: 1, sy: 1, w: 0, b: 0, f: 0, v: 0 }, u;
+    var volt = mo.dir === mo.mira ? 1 : -1;
+    function X(rate) { return mo.dir * (((t * rate) % 1) * 2 - 1) * rango; }
+    if (T === "caminar") { o.tx = X(.17); o.sx = .55 * volt; o.sy = .55; o.w = 1; o.b = 1; mc.ph = t * 7; }
+    else if (T === "correr") { o.tx = X(.32); o.sx = .55 * volt; o.sy = .55; o.w = 1.5; o.b = 1.6; mc.ph = t * 11; }
+    else if (T === "volar") { o.tx = X(.2); o.ty = Math.sin(t * 1.3) * .14 + .05; o.sx = .5 * volt; o.sy = .5; o.f = 1; o.rz = -mo.dir * Math.sin(t * 1.3) * .06; mc.ph = t * 9; }
+    else if (T === "nadar") { o.tx = X(.16); o.ty = Math.sin(t * .9) * .08; o.sx = .5 * volt; o.sy = .5; o.v = 1; mc.ph = t * 6; }
+    else if (T === "cruzar") { o.tx = X(.22); o.sx = (mo.esc || .6) * volt; o.sy = mo.esc || .6; }
+    else if (T === "saltar") { u = Math.abs(Math.sin(t * 3)); o.ty = u * .38; o.sx = .85 * (1.12 - .12 * u); o.sy = .85 * (.88 + .2 * u); mc.ph = t * 3; }
+    else if (T === "rebotar") { u = Math.abs(Math.sin(t * 3.4)); o.tx = Math.sin(t * .55) * (rango - .6) * .6; o.ty = u * .5 - .15; o.sx = .45 * (1.1 - .1 * u); o.sy = .45 * (.9 + .1 * u); o.rz = t * 2; }
+    else if (T === "girar") { o.rz = t * 2.2; }
+    else if (T === "latir") { u = Math.max(0, Math.sin(t * 5)); u = 1 + .13 * u * u * u + .07 * Math.pow(Math.max(0, Math.sin(t * 5 + 1.2)), 3); o.sx = u; o.sy = u; }
+    else if (T === "flotar") { o.ty = Math.sin(t * 1.2) * .08; o.rz = Math.sin(t * .9) * .05; o.b = .3; mc.ph = t * 2; }
+    else if (T === "bailar") { o.rz = Math.sin(t * 4) * .22; o.ty = Math.abs(Math.sin(t * 4)) * .07; o.sx = 1 + .06 * Math.sin(t * 8); o.w = .6; o.b = .8; mc.ph = t * 5; }
+    else if (T === "balancear") { o.rz = Math.sin(t * 2.4) * .55; }
+    else if (T === "orbitar") { o.tx = Math.cos(t * 1.1) * (rango - .6) * .5; o.ty = Math.sin(t * 1.1) * .28; o.sx = .42; o.sy = .42; o.rz = t * .8; }
+    else if (T === "temblar") { o.tx = Math.sin(t * 70) * .012; o.ty = Math.cos(t * 83) * .012; }
+    if (T) { mc.tx = o.tx; mc.ty = o.ty; mc.rz = o.rz; } else { mc.tx += (0 - mc.tx) * k; mc.ty += (0 - mc.ty) * k; mc.rz += (0 - mc.rz) * k; }
+    mc.sx += (o.sx - mc.sx) * k; mc.sy += (o.sy - mc.sy) * k; mc.w += (o.w - mc.w) * k; mc.b += (o.b - mc.b) * k; mc.f += (o.f - mc.f) * k; mc.v += (o.v - mc.v) * k;
+  }
+  function conMov(a, r, que) {
+    if (a && a.movimiento) { var m = iniciarMov(a); if (!m.ok) return m; r.hecho = que + " y la puse en movimiento: " + a.movimiento + "."; } else r.hecho = que + ".";
+    return r;
+  }
   function aplicar(g, rg, cr, opt) {
     opt = opt || {};
-    if (!opt.reloj) { relojOn = false; clearTimeout(retorno); }
+    if (rig) detenerRig();
+    if (!opt.reloj) { relojOn = false; clearTimeout(retorno); mo.tipo = ""; clearTimeout(mtimer); }
     src = tgt; tgt = generar(g); subir(); morph = 0; roughT = rg; crispT = cr; swirlT = cr > .5 ? 0 : 1; rotT = cr > .5 ? .1 : 1;
     if (opt.segundos > 0) retorno = setTimeout(function () { setForma("esfera"); }, Math.min(opt.segundos, 600) * 1000);
     return { ok: true };
@@ -199,6 +245,129 @@
   }
   setInterval(function () { if (!relojOn) return; var t = horaTexto(); if (t !== ultHora) { var g = textoGen(t); if (g) { ultHora = t; aplicar(g, .3, 1, { reloj: true }); } } }, 4000);
 
+  // ---------- Figuras animadas: partes articuladas que se mueven de verdad ----------
+  var rig, cpu, TAU = Math.PI * 2;
+  function nums(v, n, def) { var o = []; for (var i = 0; i < n; i++) { var x = Array.isArray(v) ? +v[i] : NaN; o.push(isFinite(x) ? x : def[i]); } return o; }
+  function normParte(p) {
+    if (!p || typeof p !== "object") return null;
+    var tipo = String(p.tipo || (p.d ? "path" : "")).toLowerCase(), n = (Array.isArray(p.n) ? p.n : []).map(Number).filter(isFinite).slice(0, 80);
+    if (tipo === "elipse" && n.length < 4) return null;
+    if (tipo === "linea" && n.length < 4) return null;
+    if (tipo === "poligono" && (n.length < 6)) return null;
+    if (tipo === "path" && !String(p.d || "").trim()) return null;
+    if (["elipse", "linea", "poligono", "path"].indexOf(tipo) < 0) return null;
+    var piv = Array.isArray(p.pivote) && p.pivote.length >= 2 && isFinite(+p.pivote[0]) && isFinite(+p.pivote[1]) ? [+p.pivote[0], +p.pivote[1]] : null;
+    if (!piv) { if (tipo === "elipse") piv = [n[0], n[1]]; else if (tipo === "linea") piv = [n[0], n[1]]; else if (tipo === "poligono") { var sx = 0, sy = 0, c = 0; for (var i = 0; i + 1 < n.length; i += 2) { sx += n[i]; sy += n[i + 1]; c++; } piv = [sx / c, sy / c]; } else piv = [50, 50]; }
+    return { tipo: tipo, n: n, d: String(p.d || "").slice(0, 2000), g: lim(+p.grosor || 0, 0, 30), rel: p.relleno !== false, piv: piv, pad: Number.isInteger(+p.padre) && p.padre != null ? +p.padre : -1,
+      rot: p.rot ? nums(p.rot, 3, [0, 1, 0]) : null, mov: p.mov ? nums(p.mov, 4, [0, 0, 1, 0]) : null, giro: +p.giro || 0, esc: p.esc ? nums(p.esc, 6, [1, 1, 1, 1, 1, 0]) : null };
+  }
+  function dibujaParte(x, o) {
+    x.fillStyle = "#fff"; x.strokeStyle = "#fff"; x.lineJoin = "round"; x.lineCap = "round"; x.save(); x.scale(4, 4); x.beginPath();
+    if (o.tipo === "linea") { x.lineWidth = o.g || 4; x.moveTo(o.n[0], o.n[1]); x.lineTo(o.n[2], o.n[3]); x.stroke(); }
+    else if (o.tipo === "elipse") { x.ellipse(o.n[0], o.n[1], Math.abs(o.n[2]) || 1, Math.abs(o.n[3]) || 1, 0, 0, TAU); if (o.rel) x.fill(); x.lineWidth = o.g || 1.2; x.stroke(); }
+    else if (o.tipo === "poligono") { x.moveTo(o.n[0], o.n[1]); for (var i = 2; i + 1 < o.n.length; i += 2) x.lineTo(o.n[i], o.n[i + 1]); x.closePath(); if (o.rel) x.fill(); x.lineWidth = o.g || 1.2; x.stroke(); }
+    else { var p; try { p = new Path2D(o.d); } catch (er) { x.restore(); return; } if (o.rel) x.fill(p); x.lineWidth = o.g || 1.2; x.stroke(p); }
+    x.restore();
+  }
+  function muestrasParte(o) {
+    var W = 400, c = document.createElement("canvas"); c.width = W; c.height = W; var x = c.getContext("2d", { willReadFrequently: true }); dibujaParte(x, o);
+    var d = x.getImageData(0, 0, W, W).data, F = [], B = [], px, py;
+    function on(a2, b2) { return a2 >= 0 && b2 >= 0 && a2 < W && b2 < W && d[(b2 * W + a2) * 4 + 3] > 110; }
+    for (py = 0; py < W; py++) for (px = 0; px < W; px++) if (on(px, py)) { F.push(px, py); if (!on(px - 1, py) || !on(px + 1, py) || !on(px, py - 1) || !on(px, py + 1)) B.push(px, py); }
+    return F.length >= 8 ? { F: F, B: B } : null;
+  }
+  function crearRig(def) {
+    var P = (Array.isArray(def.partes) ? def.partes : []).slice(0, 20).map(normParte).filter(Boolean);
+    if (!P.length) return null;
+    P.forEach(function (o, j) { o.mu = muestrasParte(o); o.w = o.mu ? Math.pow(o.mu.F.length / 2, .8) : 0; if (o.pad >= j || o.pad < -1) o.pad = -1; });
+    var tot = 0; P.forEach(function (o) { tot += o.w; }); if (!tot) return null;
+    var pi = new Uint8Array(MAX), lx = new Float32Array(MAX), ly = new Float32Array(MAX), zj = new Float32Array(MAX);
+    for (var i = 0; i < MAX; i++) {
+      var r = R() * tot, j = 0; for (; j < P.length - 1; j++) { if (r < P[j].w) break; r -= P[j].w; }
+      while (!P[j].mu) j = (j + 1) % P.length;
+      var m = P[j].mu, useB = m.B.length && R() < .3, L = useB ? m.B : m.F, q = ((R() * (L.length / 2)) | 0) * 2;
+      pi[i] = j; lx[i] = (L[q] + R() - .5) / 4; ly[i] = (L[q + 1] + R() - .5) / 4; zj[i] = (R() - .5) * .05;
+    }
+    var rb = nums(def.rebote, 2, [0, 1]);
+    return { P: P, pi: pi, lx: lx, ly: ly, zj: zj, M: new Float64Array(P.length * 6), t: 0, acc: 0, viaje: lim(+def.viaje || 0, -60, 60), reb: rb, vel: lim(+def.velocidad || 1, .2, 3), esp: !!def.espejo };
+  }
+  function posRig(r, t, out, stride, off) {
+    var P = r.P, M = r.M, j, o, gx = 0, gy = 0;
+    if (r.viaje) gx = (((r.viaje * t + 85) % 170) + 170) % 170 - 85;
+    if (r.reb[0]) gy = r.reb[0] * Math.sin(TAU * r.reb[1] * t);
+    for (j = 0; j < P.length; j++) {
+      o = P[j]; var ang = (o.rot ? o.rot[0] * Math.sin(TAU * o.rot[1] * t + o.rot[2]) : 0) + (o.giro ? o.giro * t : 0); ang *= Math.PI / 180;
+      var dx = o.mov ? o.mov[0] * Math.sin(TAU * o.mov[2] * t + o.mov[3]) : 0, dy = o.mov ? o.mov[1] * Math.sin(TAU * o.mov[2] * t + o.mov[3]) : 0, sx = 1, sy = 1;
+      if (o.esc) { var u = .5 + .5 * Math.sin(TAU * o.esc[4] * t + o.esc[5]); sx = o.esc[0] + (o.esc[1] - o.esc[0]) * u; sy = o.esc[2] + (o.esc[3] - o.esc[2]) * u; }
+      var cs = Math.cos(ang), sn = Math.sin(ang), la = cs * sx, lb = sn * sx, lc = -sn * sy, ld = cs * sy, px = o.piv[0], py = o.piv[1], le = px + dx - (la * px + lc * py), lf = py + dy - (lb * px + ld * py), b6 = j * 6;
+      if (o.pad >= 0) { var pb = o.pad * 6, pa = M[pb], pb2 = M[pb + 1], pc = M[pb + 2], pd = M[pb + 3], pe = M[pb + 4], pf = M[pb + 5];
+        M[b6] = pa * la + pc * lb; M[b6 + 1] = pb2 * la + pd * lb; M[b6 + 2] = pa * lc + pc * ld; M[b6 + 3] = pb2 * lc + pd * ld; M[b6 + 4] = pa * le + pc * lf + pe; M[b6 + 5] = pb2 * le + pd * lf + pf; }
+      else { M[b6] = la; M[b6 + 1] = lb; M[b6 + 2] = lc; M[b6 + 3] = ld; M[b6 + 4] = le; M[b6 + 5] = lf; }
+    }
+    var flip = r.esp !== (r.viaje < 0), pi = r.pi, lx = r.lx, ly = r.ly, zj = r.zj;
+    for (var i = 0; i < MAX; i++) {
+      var m6 = pi[i] * 6, x = M[m6] * lx[i] + M[m6 + 2] * ly[i] + M[m6 + 4], y = M[m6 + 1] * lx[i] + M[m6 + 3] * ly[i] + M[m6 + 5];
+      if (flip) x = 100 - x; x += gx; y += gy; var q = i * stride + off;
+      out[q] = (x - 50) * .018; out[q + 1] = -(y - 50) * .018; out[q + 2] = zj[i];
+    }
+  }
+  function animarRig(dt) {
+    var r = rig; r.t += dt * r.vel; r.acc += dt; if (r.acc < 1 / 30) return; r.acc = 0;
+    posRig(r, r.t, cpu, 8, 5); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, cpu.subarray(0, Math.min(MAX, cuenta) * 8));
+  }
+  function detenerRig() {
+    if (!rig) return; var tg = new Float32Array(MAX * 3); for (var i = 0; i < MAX; i++) { tg[i * 3] = cpu[i * 8 + 5]; tg[i * 3 + 1] = cpu[i * 8 + 6]; tg[i * 3 + 2] = cpu[i * 8 + 7]; } tgt = tg; rig = null;
+  }
+  function iniciarRig(def) {
+    var r = crearRig(def); if (!r) return false;
+    var tg = new Float32Array(MAX * 3); posRig(r, 0, tg, 3, 0);
+    if (rig) detenerRig(); relojOn = false; clearTimeout(retorno);
+    src = tgt; tgt = tg; subir(); morph = 0; roughT = .3; crispT = .85; swirlT = 0; rotT = .1; rig = r; return true;
+  }
+  var Ef = function (cx, cy, rx, ry, x) { return Object.assign({ tipo: "elipse", n: [cx, cy, rx, ry] }, x); };
+  var Lf = function (x1, y1, x2, y2, g, x) { return Object.assign({ tipo: "linea", n: [x1, y1, x2, y2], grosor: g }, x); };
+  var Gf = function (pts, x) { return Object.assign({ tipo: "poligono", n: [].concat.apply([], pts) }, x); };
+  function cuadrupedo(perro) {
+    var P = []; P.push(Ef(46, 50, perro ? 24 : 22, perro ? 12 : 11, { mov: [0, 1.4, 3.2, 0] }));
+    P.push(Ef(perro ? 74 : 72, 40, 10, 9, { padre: 0, pivote: [66, 46], rot: [5, 1.6, 1] }));
+    if (!perro) { P.push(Gf([[66, 34], [68, 21], [75, 32]], { padre: 1 })); P.push(Gf([[74, 32], [80, 22], [81, 37]], { padre: 1 })); }
+    else { P.push(Ef(67, 46, 4, 9, { padre: 1, pivote: [67, 38], rot: [12, 3.2, 0] })); P.push(Gf([[76, 33], [80, 24], [83, 35]], { padre: 1 })); P.push(Ef(84, 44, 6.5, 4.5, { padre: 1 })); }
+    var t0 = P.length;
+    if (!perro) { P.push(Lf(26, 47, 14, 40, 4, { padre: 0, pivote: [26, 47], rot: [8, 1.6, 0] })); P.push(Lf(14, 40, 10, 22, 3.4, { padre: t0, pivote: [14, 40], rot: [22, 1.6, 1.2] })); }
+    else P.push(Lf(24, 45, 13, 30, 4, { padre: 0, pivote: [24, 45], rot: [22, 4.5, 0] }));
+    [[62, 0], [54, Math.PI], [34, Math.PI], [26, 0]].forEach(function (pa) { var x = pa[0], f = pa[1], up = P.length; P.push(Lf(x, 58, x, 70, 5.4, { padre: 0, pivote: [x, 58], rot: [26, 1.6, f] })); P.push(Lf(x, 70, x, 83, 4.6, { padre: up, pivote: [x, 70], rot: [22, 1.6, f + 1.4] })); });
+    return { partes: P, viaje: 12, rebote: [.7, 3.2] };
+  }
+  function trio(cx, cy, r, aOff) { var b = []; for (var k = 0; k < 3; k++) { var a = aOff + k * TAU / 3; b.push([Math.cos(a), Math.sin(a)]); } return b; }
+  var FIGURAS = {
+    gato: function () { return cuadrupedo(false); },
+    perro: function () { return cuadrupedo(true); },
+    pajaro: function () { return { partes: [Ef(50, 50, 17, 9, { mov: [0, 1.5, 2.2, 0] }), Ef(69, 43, 6.5, 6, { padre: 0 }), Gf([[74, 41], [86, 45], [74, 48]], { padre: 1 }), Gf([[34, 50], [14, 42], [14, 58]], { padre: 0, pivote: [34, 50], rot: [8, 2.2, 1] }),
+      Gf([[44, 47], [20, 16], [40, 9], [60, 45]], { padre: 0, pivote: [50, 47], rot: [48, 2.2, 0] }), Gf([[46, 49], [28, 24], [44, 17], [58, 49]], { padre: 0, pivote: [50, 48], rot: [48, 2.2, .5] })], rebote: [2.5, 2.2], viaje: 6 }; },
+    pez: function () { return { partes: [Ef(52, 50, 25, 13, { mov: [0, 1.5, 1, 0] }), Gf([[28, 50], [8, 33], [14, 50], [8, 67]], { padre: 0, pivote: [28, 50], rot: [22, 2.4, 0] }), Gf([[46, 38], [56, 23], [66, 38]], { padre: 0, pivote: [56, 38], rot: [8, 2.4, 1] }), Gf([[50, 62], [56, 73], [62, 62]], { padre: 0, pivote: [56, 62], rot: [10, 2.4, 2] })], viaje: 9, rebote: [2, .7] }; },
+    mariposa: function () { var e = [.15, 1, 1, 1, 1.8, 0]; return { partes: [Lf(50, 34, 50, 70, 5), Ef(50, 29, 4.5, 4.5), Lf(50, 27, 43, 14, 1.8), Lf(50, 27, 57, 14, 1.8), Ef(33, 40, 18, 15, { pivote: [50, 48], esc: e }), Ef(67, 40, 18, 15, { pivote: [50, 48], esc: e }), Ef(37, 62, 13, 11, { pivote: [50, 56], esc: e }), Ef(63, 62, 13, 11, { pivote: [50, 56], esc: e })], rebote: [4, .9], viaje: 5 }; },
+    persona: function () { var P = [Lf(50, 32, 50, 58, 11, { mov: [0, 1.3, 2.8, 0] }), Ef(50, 19, 8.5, 9, { padre: 0 })], h = Math.PI;
+      [[0, 0], [1, h]].forEach(function (z) { var f = z[1], u = P.length; P.push(Lf(50, 35, 50, 50, 5, { padre: 0, pivote: [50, 35], rot: [32, 1.4, f] })); P.push(Lf(50, 50, 50, 62, 4.4, { padre: u, pivote: [50, 50], rot: [22, 1.4, f + 1.2] })); });
+      [[0, h], [1, 0]].forEach(function (z) { var f = z[1], u = P.length; P.push(Lf(50, 58, 50, 76, 6.5, { padre: 0, pivote: [50, 58], rot: [30, 1.4, f] })); P.push(Lf(50, 76, 50, 93, 5.5, { padre: u, pivote: [50, 76], rot: [26, 1.4, f + 1.5] })); });
+      return { partes: P, viaje: 9 }; },
+    coche: function () { var rueda = function (cx) { return { tipo: "path", d: "M" + (cx - 9) + " 68 a9 9 0 1 0 18 0 a9 9 0 1 0 -18 0 M" + (cx - 9) + " 68 L" + (cx + 9) + " 68 M" + cx + " 59 L" + cx + " 77", relleno: false, grosor: 2.4, pivote: [cx, 68], giro: 520, padre: 0 }; };
+      return { partes: [Gf([[12, 66], [12, 54], [26, 50], [34, 36], [66, 36], [76, 50], [90, 54], [90, 66]], { mov: [0, .7, 7, 0] }), rueda(30), rueda(72)], viaje: 22 }; },
+    corazon: function () { var pts = []; for (var i = 0; i < 48; i++) { var t = i / 48 * TAU; pts.push([50 + 2.6 * 16 * Math.pow(Math.sin(t), 3) / 1, 48 - 2.6 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))]); }
+      return { partes: [Gf(pts, { pivote: [50, 50], esc: [.86, 1.14, .86, 1.14, 1.4, 0] })] }; },
+    luna: function () { return { partes: [Ef(50, 50, 14, 14), Ef(50, 50, 31, 31, { relleno: false, grosor: .7 }), Ef(81, 50, 5, 5, { pivote: [50, 50], giro: 70 })] }; },
+    helice: function () { var P = [Ef(50, 50, 4.5, 4.5)]; trio(0, 0, 0, 0).forEach(function (v) { var a = Math.atan2(v[1], v[0]), p1 = function (r, w) { return [50 + Math.cos(a + w) * r, 50 + Math.sin(a + w) * r]; }; P.push(Gf([[50, 50], p1(34, -.32), p1(34, .32)], { pivote: [50, 50], giro: 260 })); }); return { partes: P }; },
+    cohete: function () { return { partes: [Ef(50, 48, 10, 24, { mov: [.8, 0, 9, 0] }), Gf([[41, 32], [50, 8], [59, 32]], { padre: 0 }), Gf([[40, 60], [28, 80], [41, 70]], { padre: 0 }), Gf([[60, 60], [72, 80], [59, 70]], { padre: 0 }), Gf([[43, 72], [50, 100], [57, 72]], { padre: 0, pivote: [50, 72], esc: [.7, 1.2, .5, 1.3, 7, 0] })], rebote: [1.2, 6] }; }
+  };
+  var ALIAS_FIG = [[/gat|minin|felin/, "gato"], [/perr|cachorr|\bcan\b/, "perro"], [/pajar|\bave\b|aves|palom|golondr|aguila|colibr/, "pajaro"], [/\bpez|peces|pescad|tiburon|delfin/, "pez"], [/mariposa/, "mariposa"], [/person|hombre|mujer|humano|gente|caminante|figura humana/, "persona"], [/coche|carro|auto|vehicul|camion/, "coche"], [/coraz|latido/, "corazon"], [/luna|orbit|tierra|planeta|satelit/, "luna"], [/helice|ventilador|molino|aspa|turbina/, "helice"], [/cohete|nave|rocket|misil/, "cohete"]];
+  function figuraAnimada(a) {
+    var def = null, nom = String(a.nombre || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    if (Array.isArray(a.partes) && a.partes.length) def = { partes: a.partes, viaje: a.viaje, rebote: a.rebote, velocidad: a.velocidad, espejo: a.espejo };
+    else { for (var i = 0; i < ALIAS_FIG.length; i++) if (ALIAS_FIG[i][0].test(nom)) { def = FIGURAS[ALIAS_FIG[i][1]](); break; } if (def) { if (a.viaje != null) def.viaje = a.viaje; if (a.velocidad != null) def.velocidad = a.velocidad; if (a.espejo != null) def.espejo = a.espejo; } }
+    if (!def) return { ok: false, error: "No tengo esa figura hecha. Constrúyela tú con el parámetro partes (elipses, líneas y polígonos con sus movimientos)." };
+    if (!iniciarRig(def)) return { ok: false, error: "No pude armar esa figura; revisa que las partes tengan formas válidas." };
+    return { ok: true, hecho: "La figura «" + (a.nombre || "personalizada") + "» ya está en movimiento." };
+  }
+
   // ---------- Bucle de dibujo ----------
   var ptr = [0, 0], pos = [9, 9], pS = [0, 0], pulso = 0;
   window.addEventListener("pointermove", function (e) { ptr[0] = e.clientX / innerWidth * 2 - 1; ptr[1] = e.clientY / innerHeight * 2 - 1; pos[0] = ptr[0] * asp; pos[1] = -ptr[1]; });
@@ -232,11 +401,13 @@
     if (++fr % 8 === 0) raiz.style.setProperty("--rgb", Math.round(v.c[3] * 255) + "," + Math.round(v.c[4] * 255) + "," + Math.round(v.c[5] * 255));
     sigG -= dt; if (sigG < 0) { glitch = reducido ? 0 : 1; sigG = 4 + R() * 5; }
     glitch -= glitch * 7 * dt; if (glitch < .02) glitch = 0;
+    if (rig) animarRig(dt * velU);
+    pasoMov(dt, k, holo ? 1.4 : asp + .6);
     crisp += (crispT - crisp) * k; swirl += (swirlT - swirl) * k; rotK += (rotT - rotK) * k;
     var wS = lim((rough - .3) / .7, 0, 1), rx = (ang * wS + Math.sin(ang * .8) * .75 * (1 - wS)) * rotK;
     gl.uniform1f(U.uT, t); gl.uniform1f(U.uAmp, v.amp); gl.uniform1f(U.uRad, v.rad); gl.uniform1f(U.uWave, v.wave * f);
     gl.uniform1f(U.uPulse, pulso); gl.uniform1f(U.uDPR, dpr); gl.uniform1f(U.uBr, v.br * (1 + .04 * Math.sin(t * 40)));
-    gl.uniform1f(U.uCrisp, crisp); gl.uniform1f(U.uSwirl, swirl); gl.uniform1f(U.uInt, (holo ? inten * 1.35 : inten) * (1 + .4 * crisp)); gl.uniform1f(U.uGlitch, glitch); gl.uniform1f(U.uMorph, morph); gl.uniform1f(U.uRough, rough);
+    gl.uniform4f(U.uMA, mc.w, mc.b, mc.f, mc.v); gl.uniform3f(U.uMV, mc.tx, mc.ty, mc.rz); gl.uniform2f(U.uMS, mc.sx, mc.sy); gl.uniform1f(U.uPh, mc.ph); gl.uniform1f(U.uCrisp, crisp); gl.uniform1f(U.uSwirl, swirl); gl.uniform1f(U.uInt, (holo ? inten * 1.35 : inten) * (1 + .15 * crisp) * (.55 + .45 * Math.min(1, (Math.abs(mc.sx) + mc.sy) / 2))); gl.uniform1f(U.uGlitch, glitch); gl.uniform1f(U.uMorph, morph); gl.uniform1f(U.uRough, rough);
     gl.uniform2f(U.uRot, rx + pS[0] * .6 * (1 - .7 * crisp), pS[1] * .4 * (1 - .7 * crisp));
     gl.uniform3f(U.uC1, v.c[0], v.c[1], v.c[2]); gl.uniform3f(U.uC2, v.c[3], v.c[4], v.c[5]); gl.uniform3f(U.uC3, v.c[6], v.c[7], v.c[8]);
     var tp = 1 + .25 * (inten - 1);
@@ -282,7 +453,7 @@
   function local(n, a) {
     a = a || {};
     if (n === "cambiar_color") { var c = (a.colores || []).filter(function (h) { return /^#?[0-9a-f]{6}$/i.test(h); }); if (!c.length) return { ok: false, error: "Color no válido" }; tinte = paleta(c.slice(0, 3)); return { ok: true }; }
-    if (n === "cambiar_forma") return setForma(a.nombre, a.puntos);
+    if (n === "cambiar_forma") { var rcf = setForma(a.nombre, a.puntos); return rcf.ok ? conMov(a, rcf, "Cambié la forma a " + a.nombre) : rcf; }
     if (n === "ajustar") {
       if (a.restablecer) { tinte = null; velU = 1; escU = 1; inten = 2.4; cuenta = 10000; $("inten").value = 2.4; $("cant").value = 10000; setForma("esfera"); return { ok: true }; }
       if (isFinite(a.brillo)) { inten = lim(a.brillo, .6, 4); $("inten").value = inten; }
@@ -291,13 +462,15 @@
       if (isFinite(a.particulas)) { cuenta = Math.round(lim(a.particulas, 2000, MAX)); $("cant").value = cuenta; }
       return { ok: true };
     }
-    if (n === "escribir_con_particulas") { var gt = textoGen(a.texto); if (!gt) return { ok: false, error: "No pude dibujar ese texto" }; return Object.assign(aplicar(gt, .3, 1, { segundos: +a.segundos || 0 }), { hecho: "Listo." }); }
+    if (n === "escribir_con_particulas") { var gt = textoGen(a.texto); if (!gt) return { ok: false, error: "No pude dibujar ese texto" }; return conMov(Object.assign({}, a, { mira: a.direccion || "derecha", escala: .95 }), aplicar(gt, .3, 1, { segundos: +a.segundos || 0 }), "Escribí «" + String(a.texto).replace(/\n/g, " ") + "» con las partículas"); }
     if (n === "mostrar_hora") { if (!mostrarHora()) return { ok: false, error: "No pude dibujar la hora" }; return { ok: true, hecho: horaHablada() }; }
-    if (n === "forma_con_emoji") { var ge = emojiGen(a.emoji); if (!ge) return { ok: false, error: "Ese emoji no se pudo dibujar en este dispositivo. Prueba otro o usa forma_con_trazo." }; return Object.assign(aplicar(ge, .3, .85), { hecho: "Listo." }); }
-    if (n === "forma_con_trazo") { var gz = trazoGen(a.trazo, a.relleno); if (!gz) return { ok: false, error: "El trazo SVG no es válido. Envía solo los datos d de un path en una caja de 0 a 100." }; return Object.assign(aplicar(gz, .3, .85), { hecho: "Listo." }); }
+    if (n === "forma_con_emoji") { var ge = emojiGen(a.emoji); if (!ge) return { ok: false, error: "Ese emoji no se pudo dibujar en este dispositivo. Prueba otro o usa forma_con_trazo." }; return conMov(a, aplicar(ge, .3, .85), "Formé la silueta de " + a.emoji); }
+    if (n === "forma_con_trazo") { var gz = trazoGen(a.trazo, a.relleno); if (!gz) return { ok: false, error: "El trazo SVG no es válido. Envía solo los datos d de un path en una caja de 0 a 100." }; return conMov(a, aplicar(gz, .3, .85), "Dibujé la forma con un trazo"); }
+    if (n === "figura_animada") return figuraAnimada(a);
+    if (n === "animar") { var ra = iniciarMov(a); if (ra.ok && !ra.hecho) ra.hecho = "La forma ahora está en movimiento: " + a.movimiento + "."; return ra; }
     if (n === "linterna") return linterna(a.estado !== "apagar");
     if (n === "bateria") return bateria();
-    if (n === "vibrar") { if (!navigator.vibrate) return { ok: false, error: "Este navegador no permite vibrar." }; navigator.vibrate(lim(a.ms || 300, 20, 2000)); return { ok: true, hecho: "Listo." }; }
+    if (n === "vibrar") { if (!navigator.vibrate) return { ok: false, error: "Este navegador no permite vibrar." }; navigator.vibrate(lim(a.ms || 300, 20, 2000)); return { ok: true, hecho: "Hice vibrar el celular." }; }
     if (n === "ubicacion") return ubicacion();
     if (n === "compartir") return compartir(a);
     if (n === "copiar") return copiar(a.texto);
@@ -345,6 +518,7 @@
     { name: "mostrar_hora", description: "Muestra la hora actual escrita con las partículas (se actualiza sola)." },
     { name: "forma_con_emoji", description: "Convierte las partículas en la silueta de cualquier objeto, animal o símbolo usando UN emoji, por ejemplo 🐶 🚗 🌹 🚀 🏠.", parameters: P({ emoji: { type: "string" } }, ["emoji"]) },
     { name: "forma_con_trazo", description: "Dibuja cualquier forma con un trazo SVG. trazo = datos d de un path dentro de una caja de 0 a 100 en x e y (y crece hacia abajo). relleno=false deja solo el contorno.", parameters: P({ trazo: { type: "string" }, relleno: { type: "boolean" } }, ["trazo"]) },
+    { name: "figura_animada", description: "Muestra una figura que se MUEVE de verdad (patas que caminan, alas que aletean, ruedas que giran). Figuras ya hechas, solo con nombre: gato, perro, pájaro, pez, mariposa, persona caminando, coche, corazón latiendo, luna orbitando, hélice, cohete. Para cualquier otra cosa en movimiento (dragón, robot bailando, bicicleta, reloj) construye la figura con partes en una caja de 0 a 100 (y hacia abajo, mirando a la derecha). Cada parte: tipo (elipse con n=[cx,cy,rx,ry]; linea con n=[x1,y1,x2,y2] y grosor; poligono con n=[x1,y1,x2,y2,...]; path con d), pivote [x,y] (punto sobre el que gira), padre (índice de otra parte anterior a la que va unida y de la que hereda el movimiento), rot [grados, ciclos por segundo, fase en radianes] (balanceo), giro (grados por segundo, rotación continua), mov [dx, dy, hz, fase] (vaivén), esc [xmin,xmax,ymin,ymax,hz,fase] (aleteo o latido). Ejemplo de una pata articulada: {tipo:'linea',n:[60,58,60,70],grosor:5,padre:0,pivote:[60,58],rot:[26,1.6,0]}. Globales: viaje (unidades por segundo para cruzar la pantalla, negativo va a la izquierda), rebote [amplitud, hz], velocidad.", parameters: P({ nombre: { type: "string" }, partes: { type: "array", items: { type: "object", properties: { tipo: { type: "string" }, n: { type: "array", items: { type: "number" } }, d: { type: "string" }, grosor: { type: "number" }, relleno: { type: "boolean" }, pivote: { type: "array", items: { type: "number" } }, padre: { type: "number" }, rot: { type: "array", items: { type: "number" } }, giro: { type: "number" }, mov: { type: "array", items: { type: "number" } }, esc: { type: "array", items: { type: "number" } } } } }, viaje: { type: "number" }, rebote: { type: "array", items: { type: "number" } }, velocidad: { type: "number" }, espejo: { type: "boolean" } }, ["nombre"]) },
     { name: "linterna", description: "Enciende o apaga la linterna del celular.", parameters: P({ estado: { type: "string", enum: ["encender", "apagar"] } }, ["estado"]) },
     { name: "bateria", description: "Consulta el nivel de batería del dispositivo." },
     { name: "vibrar", description: "Hace vibrar el celular unos milisegundos.", parameters: P({ ms: { type: "number" } }) },
@@ -358,8 +532,18 @@
     { name: "olvidar", description: "Borra de tu memoria los datos que contengan ese texto.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "palabra_clave", description: "Cambia la palabra con la que el usuario te llama por voz (por defecto nexo).", parameters: P({ palabra: { type: "string" } }, ["palabra"]) }
   );
+  TOOLS[0].functionDeclarations.push({ name: "animar", description: "Pone en movimiento la forma que ya está en pantalla, o la detiene con ninguno. movimiento: caminar, correr, volar, nadar, cruzar, saltar, rebotar, girar, latir, flotar, bailar, balancear, orbitar, temblar, ninguno.", parameters: P({ movimiento: { type: "string" }, velocidad: { type: "number" }, direccion: { type: "string", enum: ["derecha", "izquierda"] }, mira: { type: "string", enum: ["izquierda", "derecha"] }, segundos: { type: "number" } }, ["movimiento"]) });
+  TOOLS[0].functionDeclarations.forEach(function (f) {
+    if (["cambiar_forma", "escribir_con_particulas", "forma_con_emoji", "forma_con_trazo"].indexOf(f.name) < 0) return;
+    var pr = f.parameters.properties;
+    pr.movimiento = { type: "string", description: "Opcional: caminar, correr, volar, nadar, cruzar, saltar, rebotar, girar, latir, flotar, bailar, balancear, orbitar o temblar." };
+    pr.velocidad = { type: "number", description: "0.3 a 3, por defecto 1" };
+    pr.direccion = { type: "string", enum: ["derecha", "izquierda"], description: "Hacia dónde avanza" };
+    pr.mira = { type: "string", enum: ["izquierda", "derecha"], description: "Hacia dónde mira el emoji; casi todos los animales y vehículos miran a la izquierda (por defecto)" };
+  });
   NECESITA.bateria = 1; NECESITA.ubicacion = 1;
-  SYS.parts[0].text += " Respondes como un asistente de voz: una frase corta y directa. Tus partículas pueden formar cualquier cosa: para palabras, números o la hora usa escribir_con_particulas o mostrar_hora; para objetos y animales usa forma_con_emoji; para un dibujo propio usa forma_con_trazo; nunca digas que no puedes formar algo. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz y brillo_app. Si piden cambiar el brillo o el volumen del sistema del celular, explica que desde una web no es posible y ofrece cambiar tu propio brillo o el volumen de tu voz. Usa recordar cuando el usuario te cuente algo duradero o te pida recordarlo.";
+  SYS.parts[0].text += " Después de usar una herramienta responde siempre con una o dos frases naturales y con personalidad: cuenta lo que hiciste y añade algo breve, útil o simpático. Nunca respondas solo «Listo». Si piden algo que se mueve (un gato caminando, un pájaro volando, un coche, un corazón latiendo, un pez nadando), usa figura_animada.";
+  SYS.parts[0].text += " Respondes como un asistente de voz con personalidad y calidez: entre una y tres frases naturales, nunca respuestas secas de una sola palabra como «Listo». Tus partículas pueden formar cualquier cosa: para palabras, números o la hora usa escribir_con_particulas o mostrar_hora; para objetos y animales usa forma_con_emoji; para un dibujo propio usa forma_con_trazo; nunca digas que no puedes formar algo. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz y brillo_app. Si piden cambiar el brillo o el volumen del sistema del celular, explica que desde una web no es posible y ofrece cambiar tu propio brillo o el volumen de tu voz. Usa recordar cuando el usuario te cuente algo duradero o te pida recordarlo. Para figuras en movimiento (un gato caminando, un pájaro volando, una pelota rebotando, un coche cruzando, una palabra que se desplaza) usa forma_con_emoji o escribir_con_particulas con el parámetro movimiento, o animar para mover lo que ya está en pantalla. IMPORTANTE: después de usar herramientas siempre cuéntale al usuario, en una o dos frases con personalidad, lo que hiciste o lo que ves; nunca respondas solo «Listo».";
   function sysAhora() {
     var t = new Date().toLocaleString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/[  ]/g, " ");
     return { parts: [{ text: SYS.parts[0].text + "\nAhora mismo: " + t + "." + (mem.length ? "\nLo que recuerdas del usuario:\n- " + mem.join("\n- ") : "") }] };
@@ -474,7 +658,7 @@
         if (total) { total += "\n"; buffer += " "; }
         return Promise.all(calls.map(function (p) { return ejecutar(p.functionCall.name, p.functionCall.args); })).then(function (res) {
           var fallo = res.some(function (r) { return r && r.ok === false; }), datos = calls.some(function (p) { return NECESITA[p.functionCall.name]; });
-          if ((fallo || datos) && ronda++ < 2) {
+          if ((fallo || datos || !total) && ronda++ < 2) {
             contents.push({ role: "model", parts: ps });
             contents.push({ role: "user", parts: calls.map(function (p, i) { return { functionResponse: { name: p.functionCall.name, response: res[i] || { ok: false } } }; }) });
             return paso();
