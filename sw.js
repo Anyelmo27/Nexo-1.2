@@ -1,5 +1,5 @@
 // Service worker de NEXO: abre sin conexión y siempre intenta traer la versión nueva primero.
-const C = "nexo-v12";
+const C = "nexo-v20";
 const BASE = ["./", "index.html", "app.js", "style.css", "manifest.json", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(C).then(c => Promise.all(BASE.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));

@@ -42,9 +42,20 @@
       <button type="button" data-a="contactos">👤  Elegir mis contactos (llamar y escribir)</button>
       <button type="button" data-a="tm">⏱️  Mis temporizadores y alarmas</button>
       <button type="button" data-a="notas">📝  Mis notas y listas</button>
+      <button type="button" data-a="live">⚡  Modo en vivo (Gemini Live, beta)</button>
+      <button type="button" data-a="diag">📊  Diagnóstico y calidad</button>
       <button type="button" data-a="piramide">🔺  Modo pirámide (holograma 3D)</button>
       <button type="button" data-a="controles">⚙️  Controles</button>
       <button type="button" data-a="cerrar">Cerrar</button>
+    </div>
+  </div>
+  <div id="diag" role="dialog" aria-label="Diagnóstico">
+    <pre id="diagt"></pre>
+    <div class="fila">
+      <label>Calidad <select id="calsel"><option value="auto">Automática</option><option value="bajo">Baja</option><option value="medio">Media</option><option value="alto">Alta</option></select></label>
+      <button type="button" id="recal">Recalibrar</button>
+      <button type="button" id="diagc">Copiar reporte</button>
+      <button type="button" id="diagx">Cerrar</button>
     </div>
   </div>
   <input type="file" id="fArch" hidden accept="image/*,application/pdf,audio/*,text/*,.txt,.md,.csv,.json,.log">
@@ -62,6 +73,8 @@
           <label>Distancia al centro <input type="range" id="dist" min="0" max="0.12" step="0.005" value="0.04"></label>
           <label><input type="checkbox" id="limp" checked> Pantalla limpia (sin barra de chat)</label>
           <label><input type="checkbox" id="vozon" checked> Respuesta en voz</label>
+          <label><input type="checkbox" id="liveon"> Modo en vivo (Gemini Live, beta)</label>
+          <label><input type="checkbox" id="liveint"> En vivo: poder interrumpirlo hablando (usa audífonos)</label>
           <label><input type="checkbox" id="wake"> Llamarlo diciendo «<span id="wpal">nexo</span>»</label>
           <label>Voz del navegador <select id="vozn"></select></label>
           <label>Voz <select id="voz"><option value="Navegador">Rápida (navegador)</option><option>Kore</option><option>Puck</option><option>Aoede</option><option>Charon</option><option>Fenrir</option><option>Zephyr</option></select></label>

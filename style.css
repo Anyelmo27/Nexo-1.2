@@ -93,3 +93,8 @@ body.limpio:not(.teclado) footer, body.limpio:not(.teclado) #chat { display: non
 #hoja button[data-a=cerrar] { text-align: center; color: var(--apagado); }
 #med { display: none; }
 #med.video.on { display: block; position: fixed; right: 10px; top: 58px; width: 42vw; max-width: 260px; border-radius: 14px; border: 1px solid rgba(var(--rgb), .45); z-index: 4; background: #000; }
+
+#diag { position: fixed; inset: 0; z-index: 70; display: none; background: rgba(8,4,2,.99); padding: calc(env(safe-area-inset-top) + 14px) 14px 14px; overflow-y: auto; }
+#diag.abierta { display: block; }
+#diag pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Menlo, monospace; color: #ffd9a8; margin: 0 0 14px; }
+#diag .fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding-bottom: 20px; }

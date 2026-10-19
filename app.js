@@ -1,4 +1,4 @@
-// NEXO AI v1.0 — holograma estilo Jarvis con IA (Gemini en streaming), voz, micrófono, cámara y agente local del PC.
+// NEXO AI v2.0 — holograma estilo Jarvis con IA (Gemini en streaming), voz, micrófono, cámara y agente local del PC.
 (function () {
   "use strict";
   var NOMBRE = "Anyel";
@@ -25,6 +25,26 @@
   K.forEach(function (k) { v[k] = E.reposo[k]; });
   var etiqueta = $("estado");
   function fijar(c) { if (!E[c]) return false; actual = c; etiqueta.textContent = E[c].n; return true; }
+
+  // ---------- Diagnóstico (medidas) ----------
+  var M = { txt: [], aud: [], ttsMs: [], ttsOk: 0, ttsFail: 0, t0: 0, gotTxt: false, gotAud: false, live: { estado: "apagado", setupMs: 0, audioMs: [], cierres: 0, ultimo: "", modo: 0 } }, DL = [];
+  function dlog(s) { DL.push(new Date().toLocaleTimeString("es-CO") + " " + String(s).slice(0, 240)); if (DL.length > 14) DL.shift(); }
+  window.addEventListener("error", function (e) { dlog("Error JS: " + (e.message || "") + (e.lineno ? " (línea " + e.lineno + ")" : "")); });
+  window.addEventListener("unhandledrejection", function (e) { dlog("Promesa rechazada: " + ((e.reason && e.reason.message) || e.reason)); });
+  var FT = new Float32Array(300), fti = 0, ftN = 0, tIni = 0, cal = { fase: 0, n: 0, suma: 0 };
+  function medir(dt, now) {
+    FT[fti++ % 300] = dt * 1000; if (ftN < 300) ftN++;
+    if (cal.fase === 0) {
+      if (calidad !== "auto" || ls("nexo_q")) { cal.fase = 2; return; }
+      if (!tIni) tIni = now; if (now - tIni > 3000) { cal.fase = 1; cal.n = 0; cal.suma = 0; }
+    } else if (cal.fase === 1 && dt < .1) {
+      cal.suma += dt * 1000;
+      if (++cal.n >= 120) {
+        cal.fase = 2; var avg = cal.suma / cal.n, nq = avg > 20.5 ? "bajo" : "medio";
+        ls("nexo_q", nq); ls("nexo_qms", avg.toFixed(1)); nivelQ = nq; aplicarCalidad(); dlog("Calibración: " + avg.toFixed(1) + " ms por cuadro, calidad " + nq);
+      }
+    }
+  }
 
   // ---------- Formas ----------
   var MAX = 16000;
@@ -62,7 +82,7 @@
   // ---------- WebGL ----------
   var VS = [
     "attribute vec2 aR;attribute vec3 aS,aT;",
-    "uniform float uT,uAsp,uScale,uAmp,uRad,uWave,uPulse,uDPR,uSwap,uPS,uGlitch,uMorph,uRough,uOff,uCrisp,uSwirl;",
+    "uniform float uT,uAsp,uScale,uAmp,uRad,uWave,uPulse,uDPR,uSwap,uPS,uGlitch,uMorph,uRough,uOff,uCrisp,uSwirl,uLite;",
     "uniform vec2 uRot,uPtr,uFlip,uMS;uniform vec3 uC1,uC2,uC3,uMV;uniform vec4 uMA;uniform float uPh;",
     "varying vec3 vC;varying float vA;",
     "void main(){",
@@ -78,7 +98,7 @@
     " float fl=max(smoothstep(.1,.7,abs(d.x)),smoothstep(.1,.6,d.y)*.7);",
     " d.y+=uMA.z*sin(uPh)*.22*fl;",
     " d.y+=uMA.w*sin(uPh+d.x*5.)*.1*(.4+.6*abs(d.x));",
-    " vec3 w=vec3(sin(d.y*2.6+t*.55+aR.y*6.283),sin(d.z*2.4-t*.47+aR.y*4.),sin(d.x*2.8+t*.4+aR.y*5.))",
+    " vec3 w=vec3(0.);if(uLite<.5)w=vec3(sin(d.y*2.6+t*.55+aR.y*6.283),sin(d.z*2.4-t*.47+aR.y*4.),sin(d.x*2.8+t*.4+aR.y*5.))",
     "  +.5*vec3(sin(d.z*5.1+t*.9),sin(d.x*4.7-t*.8),sin(d.y*5.3+t*.7));",
     " float shell=.82+uRough*.5*aR.x*aR.x*aR.x+(1.-uRough)*.1*aR.x;",
     " shell=mix(shell,.95,uCrisp);",
@@ -108,8 +128,12 @@
     "void main(){float r=length(gl_PointCoord-.5)*2.;float a=1.-smoothstep(0.,1.,r);",
     " a*=a*vA*uBr*uInt*.6;vec3 c=vC*a;gl_FragColor=vec4(c,max(c.r,max(c.g,c.b)));}"
   ].join("\n");
+  var QUAL = { bajo: { n: 4500, dpr: 1, lite: 1, vd: .75, vs: 2 }, medio: { n: 8000, dpr: 1.25, lite: 0, vd: 1, vs: 1 }, alto: { n: 12000, dpr: 2, lite: 0, vd: 1.5, vs: 1 } };
+  var calidad = ls("nexo_cal") || "auto", nivelQ = ls("nexo_q") || "medio";
+  if (!QUAL[nivelQ]) nivelQ = "medio"; if (calidad !== "auto" && !QUAL[calidad]) calidad = "auto";
+  function Q() { return QUAL[calidad === "auto" ? nivelQ : calidad]; }
   var cv = $("lienzo"), U = {}, listo = false, buf = null;
-  var gl = cv.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false });
+  var gl = cv.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false, powerPreference: "high-performance" });
   function compilar(tipo, s) { var h = gl.createShader(tipo); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(h)); return null; } return h; }
   function subir() {
     var d = new Float32Array(MAX * 8);
@@ -123,14 +147,14 @@
     if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(pr)); return false; }
     gl.useProgram(pr); buf = gl.createBuffer(); subir();
     [["aR", 2, 0], ["aS", 3, 8], ["aT", 3, 20]].forEach(function (a) { var l = gl.getAttribLocation(pr, a[0]); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, a[1], gl.FLOAT, false, 32, a[2]); });
-    ["uT","uAsp","uScale","uAmp","uRad","uWave","uPulse","uDPR","uSwap","uPS","uGlitch","uMorph","uRough","uOff","uCrisp","uSwirl","uMA","uMV","uMS","uPh","uRot","uPtr","uFlip","uC1","uC2","uC3","uBr","uInt"].forEach(function (n) { U[n] = gl.getUniformLocation(pr, n); });
+    ["uT","uAsp","uScale","uAmp","uRad","uWave","uPulse","uDPR","uSwap","uPS","uGlitch","uMorph","uRough","uOff","uCrisp","uSwirl","uLite","uMA","uMV","uMS","uPh","uRot","uPtr","uFlip","uC1","uC2","uC3","uBr","uInt"].forEach(function (n) { U[n] = gl.getUniformLocation(pr, n); });
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.clearColor(0, 0, 0, 0);
     return true;
   }
   if (!gl) etiqueta.textContent = "Este navegador no admite WebGL: no se puede dibujar el holograma";
   else if (!(listo = iniciar())) etiqueta.textContent = "Error al compilar el shader: abre la consola (F12)";
   var asp = 1, dpr = 1;
-  function ajustar() { if (!gl) return; dpr = Math.min(window.devicePixelRatio || 1, 2); cv.width = Math.max(2, Math.round(cv.clientWidth * dpr)); cv.height = Math.max(2, Math.round(cv.clientHeight * dpr)); asp = cv.width / cv.height; gl.viewport(0, 0, cv.width, cv.height); }
+  function ajustar() { if (!gl) return; dpr = Math.min(window.devicePixelRatio || 1, Q().dpr); cv.width = Math.max(2, Math.round(cv.clientWidth * dpr)); cv.height = Math.max(2, Math.round(cv.clientHeight * dpr)); asp = cv.width / cv.height; gl.viewport(0, 0, cv.width, cv.height); }
   window.addEventListener("resize", ajustar); ajustar();
   var mo = { tipo: "", vel: 1, dir: 1, mira: -1, t: 0 }, mc = { tx: 0, ty: 0, rz: 0, sx: 1, sy: 1, w: 0, b: 0, f: 0, v: 0, ph: 0 }, mtimer = 0;
   var MOVS = { caminar: 1, correr: 1, volar: 1, nadar: 1, cruzar: 1, saltar: 1, rebotar: 1, girar: 1, latir: 1, flotar: 1, bailar: 1, balancear: 1, orbitar: 1, temblar: 1 };
@@ -373,7 +397,7 @@
   window.addEventListener("pointermove", function (e) { ptr[0] = e.clientX / innerWidth * 2 - 1; ptr[1] = e.clientY / innerHeight * 2 - 1; pos[0] = ptr[0] * asp; pos[1] = -ptr[1]; });
   window.addEventListener("pointerdown", function () { pulso = 1; });
   var reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var holo = false, inv = false, inten = +ls("nexo_inten") || 2.4, tam = .3, dist = .04, cuenta = 10000, velU = 1, escU = 1;
+  var holo = false, inv = false, inten = +ls("nexo_inten") || 2.4, tam = .3, dist = .04, cuenta = Q().n, velU = 1, escU = 1;
   var ult = 0, t = 0, ang = 0, acum = 0, cuadros = 0, pp = [9, 9], glitch = 0, sigG = 5, sigP = 2, fr = 0, raiz = document.documentElement;
   var VISTAS = [[0, 1, -1, 1, 0], [0, -1, 1, -1, 0], [1, 0, 1, 1, 1], [-1, 0, -1, -1, 1]];
   var ac = null, anS = null, anM = null, b1 = new Uint8Array(256), b2 = new Uint8Array(256), hablando = false, grabando = false, hablo = false, ultV = 0, t0 = 0, grab = null, fuente = null, pendNav = 0, streaming = false;
@@ -384,7 +408,7 @@
     requestAnimationFrame(dibujar);
     if (!listo || document.hidden) return;
     var dt = Math.min((now - ult) / 1000, .1); ult = now;
-    acum += dt; if (++cuadros === 90) { if (acum / 90 > .028 && cuenta > 1500) cuenta = Math.round(cuenta * .8); acum = 0; cuadros = 0; }
+    medir(dt, now);
     var e = E[actual], k = 1 - Math.pow(.05, dt), tc = (tinte && actual !== "error" && actual !== "preocupado") ? tinte : e.c;
     K.forEach(function (n) { v[n] += (e[n] - v[n]) * k; });
     for (var i = 0; i < 9; i++) v.c[i] += (tc[i] - v.c[i]) * k;
@@ -398,7 +422,7 @@
     t += dt * (.6 + .5 * v.spd * velU) * f; ang += v.spd * velU * .22 * dt * f;
     pS[0] += (ptr[0] - pS[0]) * .05; pS[1] += (ptr[1] - pS[1]) * .05;
     pp[0] += (pos[0] - pp[0]) * .2; pp[1] += (pos[1] - pp[1]) * .2;
-    if (++fr % 8 === 0) raiz.style.setProperty("--rgb", Math.round(v.c[3] * 255) + "," + Math.round(v.c[4] * 255) + "," + Math.round(v.c[5] * 255));
+    if (++fr % 24 === 0) raiz.style.setProperty("--rgb", Math.round(v.c[3] * 255) + "," + Math.round(v.c[4] * 255) + "," + Math.round(v.c[5] * 255));
     sigG -= dt; if (sigG < 0) { glitch = reducido ? 0 : 1; sigG = 4 + R() * 5; }
     glitch -= glitch * 7 * dt; if (glitch < .02) glitch = 0;
     if (rig) animarRig(dt * velU);
@@ -406,7 +430,7 @@
     limpioV += (limpioT - limpioV) * k; if (gm) gm.gain.value += (((escuchando || grabando || ocupado || hablando || pendNav > 0) ? .22 : 1) - gm.gain.value) * Math.min(1, dt * 5);
     crisp += (crispT - crisp) * k; swirl += (swirlT - swirl) * k; rotK += (rotT - rotK) * k;
     var wS = lim((rough - .3) / .7, 0, 1), rx = (ang * wS + Math.sin(ang * .8) * .75 * (1 - wS)) * rotK;
-    gl.uniform1f(U.uT, t); gl.uniform1f(U.uAmp, v.amp); gl.uniform1f(U.uRad, v.rad); gl.uniform1f(U.uWave, v.wave * f);
+    gl.uniform1f(U.uLite, Q().lite); gl.uniform1f(U.uT, t); gl.uniform1f(U.uAmp, v.amp); gl.uniform1f(U.uRad, v.rad); gl.uniform1f(U.uWave, v.wave * f);
     gl.uniform1f(U.uPulse, pulso); gl.uniform1f(U.uDPR, dpr); gl.uniform1f(U.uBr, v.br * (1 + .04 * Math.sin(t * 40)));
     gl.uniform4f(U.uMA, mc.w, mc.b, mc.f, mc.v); gl.uniform3f(U.uMV, mc.tx, mc.ty, mc.rz); gl.uniform2f(U.uMS, mc.sx, mc.sy); gl.uniform1f(U.uPh, mc.ph); gl.uniform1f(U.uCrisp, crisp); gl.uniform1f(U.uSwirl, swirl); gl.uniform1f(U.uInt, (holo ? inten * 1.35 : inten) * (1 + .15 * crisp) * (.55 + .45 * Math.min(1, (Math.abs(mc.sx) + mc.sy) / 2))); gl.uniform1f(U.uGlitch, glitch); gl.uniform1f(U.uMorph, morph); gl.uniform1f(U.uRough, rough);
     gl.uniform2f(U.uRot, rx + pS[0] * .6 * (1 - .7 * crisp), pS[1] * .4 * (1 - .7 * crisp));
@@ -457,7 +481,7 @@
     if (n === "cambiar_color") { var c = (a.colores || []).filter(function (h) { return /^#?[0-9a-f]{6}$/i.test(h); }); if (!c.length) return { ok: false, error: "Color no válido" }; tinte = paleta(c.slice(0, 3)); return { ok: true }; }
     if (n === "cambiar_forma") { var rcf = setForma(a.nombre, a.puntos); return rcf.ok ? conMov(a, rcf, "Cambié la forma a " + a.nombre) : rcf; }
     if (n === "ajustar") {
-      if (a.restablecer) { tinte = null; velU = 1; escU = 1; inten = 2.4; cuenta = 10000; $("inten").value = 2.4; $("cant").value = 10000; setForma("esfera"); return { ok: true }; }
+      if (a.restablecer) { tinte = null; velU = 1; escU = 1; inten = 2.4; cuenta = Q().n; $("inten").value = 2.4; $("cant").value = cuenta; setForma("esfera"); return { ok: true }; }
       if (isFinite(a.brillo)) { inten = lim(a.brillo, .6, 4); $("inten").value = inten; }
       if (isFinite(a.velocidad)) velU = lim(a.velocidad, .2, 3);
       if (isFinite(a.tamano)) escU = lim(a.tamano, .5, 1.5);
@@ -641,30 +665,32 @@
     u.onboundary = function () { pulso = Math.max(pulso, .7); }; u.onend = u.onerror = cerrar; setTimeout(cerrar, 3500 + txt.length * 110);
     pendNav++; try { speechSynthesis.resume(); } catch (er) {} speechSynthesis.speak(u);
   }
-  var colaG = [], tocandoG = false, genG = 0;
+  var colaG = [], tocandoG = false, genG = 0, ttsMalo = 0;
   function pedirTTS(txt) {
-    var ctl = new AbortController(), tt = setTimeout(function () { ctl.abort(); }, 9000);
-    return fetch(API + TTS + ":generateContent", { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify({ contents: [{ parts: [{ text: "Di de forma natural, cálida y fluida: " + txt }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: selVoz.value } } } } }) })
+    var ctl = new AbortController(), tt = setTimeout(function () { ctl.abort(); }, 12000), tI = performance.now();
+    return fetch(API + TTS + ":generateContent", { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify({ contents: [{ parts: [{ text: "Habla con tono cálido y natural, a ritmo constante y siempre con el mismo estilo de voz: " + txt }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: selVoz.value } } } } }) })
       .then(function (r) { clearTimeout(tt); return r.ok ? r.json() : errHTTP(r); })
       .then(function (j) {
         var d = j.candidates[0].content.parts[0].inlineData, f = b64Pcm(d.data), m = /rate=(\d+)/.exec(d.mimeType || ""), a = audio(), bf = a.createBuffer(1, f.length, m ? +m[1] : 24000);
-        bf.copyToChannel(f, 0); return bf;
+        bf.copyToChannel(f, 0); M.ttsOk++; M.ttsMs.push(Math.round(performance.now() - tI)); if (M.ttsMs.length > 20) M.ttsMs.shift(); return bf;
       }).catch(function (e) { clearTimeout(tt); throw e; });
   }
   function encolarG(txt) {
     txt = String(txt || "").trim(); if (!txt) return;
-    var p = pedirTTS(txt); p.catch(function () {});
-    pendNav++; colaG.push({ txt: txt, g: genG, p: p }); if (!tocandoG) siguienteG();
+    var nav = Date.now() - ttsMalo < 300000, p = nav ? null : pedirTTS(txt); if (p) p.catch(function () {});
+    pendNav++; colaG.push({ txt: txt, g: genG, p: p, nav: nav }); if (!tocandoG) siguienteG();
   }
   function siguienteG() {
     var it = colaG.shift(); if (!it) { tocandoG = false; hablando = false; fin(); return; }
     tocandoG = true;
+    if (it.nav) { pendNav = Math.max(0, pendNav - 1); frase(it.txt, function () { if (it.g === genG) siguienteG(); }); return; }
     it.p.then(function (bf) {
       if (it.g !== genG) return;
+      if (!M.gotAud && M.t0) { M.gotAud = true; M.aud.push(Math.round(performance.now() - M.t0)); if (M.aud.length > 20) M.aud.shift(); }
       var a = audio(), s = a.createBufferSource(); s.buffer = bf; s.connect(anS); hablando = true; fuente = s;
       s.onended = function () { if (it.g !== genG) return; hablando = false; pendNav = Math.max(0, pendNav - 1); siguienteG(); }; s.start();
     }).catch(function (e) {
-      if (it.g !== genG) return; console.warn("Voz de Gemini no disponible:", e && e.message); pendNav = Math.max(0, pendNav - 1);
+      if (it.g !== genG) return; console.warn("Voz de Gemini no disponible:", e && e.message); M.ttsFail++; ttsMalo = Date.now(); dlog("TTS Gemini falló: " + (e && e.message) + " (uso la voz del navegador 5 min para no mezclar voces)"); pendNav = Math.max(0, pendNav - 1);
       frase(it.txt, function () { if (it.g === genG) siguienteG(); });
     });
   }
@@ -685,10 +711,12 @@
     function emitir(x) { x = String(x).replace(/[*_`#]/g, ""); if (!x.trim()) return; if (selVoz.value === "Navegador") frase(x); else encolarG(x); }
     function sacar(todo) {
       if (!usarVoz) return;
-      var m, re1 = hablado ? /^([\s\S]{8,}?[.!?…])\s/ : /^([\s\S]{12,}?[.!?…:;,])\s/;
-      while ((m = re1.exec(buffer))) { emitir(m[1]); hablado = true; buffer = buffer.slice(m[0].length); re1 = /^([\s\S]{8,}?[.!?…])\s/; }
-      if (!hablado && buffer.length >= 64 && (m = /^([\s\S]{44,}?)\s(?=\S)/.exec(buffer))) { emitir(m[1]); hablado = true; buffer = buffer.slice(m[0].length); }
-      else if (hablado && buffer.length > 90 && (m = /^([\s\S]{50,}?[,;:])\s/.exec(buffer))) { emitir(m[1]); buffer = buffer.slice(m[0].length); }
+      var m, re1 = hablado ? /^([\s\S]{8,}?[.!?…])\s/ : /^([\s\S]{12,}?[.!?…:;,])\s/, gem = selVoz.value !== "Navegador";
+      function espera() { return gem && hablado && !todo && buffer.length < 280; }
+      if (gem && hablado && todo) { if (buffer.trim()) emitir(buffer); buffer = ""; return; }
+      while (!espera() && (m = re1.exec(buffer))) { emitir(m[1]); hablado = true; buffer = buffer.slice(m[0].length); re1 = /^([\s\S]{8,}?[.!?…])\s/; }
+      if (!espera() && !hablado && buffer.length >= 64 && (m = /^([\s\S]{44,}?)\s(?=\S)/.exec(buffer))) { emitir(m[1]); hablado = true; buffer = buffer.slice(m[0].length); }
+      else if (!gem && hablado && buffer.length > 90 && (m = /^([\s\S]{50,}?[,;:])\s/.exec(buffer))) { emitir(m[1]); buffer = buffer.slice(m[0].length); }
       if (todo && buffer.trim()) { emitir(buffer); hablado = true; buffer = ""; }
     }
     var tr = ub ? { buf: "", ok: false } : null;
@@ -699,7 +727,7 @@
         if (s.slice(0, 2) !== "[[") { tr.ok = true; d = tr.buf; }
         else { var ci = s.indexOf("]]"); if (ci < 0) { if (s.length < 500) return; tr.ok = true; d = tr.buf; } else { ultTrans = s.slice(2, ci).trim(); if (ultTrans) ub.textContent = ultTrans; tr.ok = true; d = s.slice(ci + 2).replace(/^\s+/, ""); if (!d) return; } }
       }
-      if (!total) { fijar(emo || "respuesta"); } total += d; buffer += d; burbuja.textContent = total; chat.scrollTop = chat.scrollHeight; sacar(false); }
+      if (!total) { fijar(emo || "respuesta"); if (!M.gotTxt && M.t0) { M.gotTxt = true; M.txt.push(Math.round(performance.now() - M.t0)); if (M.txt.length > 20) M.txt.shift(); } } total += d; buffer += d; burbuja.textContent = total; chat.scrollTop = chat.scrollHeight; sacar(false); }
     function paso() {
       return stream(contents, alTexto).then(function (ps) {
         if (tr && !tr.ok) { tr.ok = true; if (tr.buf.trim()) alTexto(tr.buf); }
@@ -726,7 +754,7 @@
     if (txt && rapido(txt)) return;
     pararWake();
     if (!clave && !pedirClave()) { msg("e", "Necesito tu clave de Gemini para pensar."); return; }
-    ocupado = true; cancelado = false; emo = null; limpiarTm(); detenerVoz(); audio(); streaming = true; fijar("procesando"); pulso = 1.2;
+    M.t0 = performance.now(); M.gotTxt = false; M.gotAud = false; ocupado = true; cancelado = false; emo = null; limpiarTm(); detenerVoz(); audio(); streaming = true; fijar("procesando"); pulso = 1.2;
     var vig = setTimeout(cancelar, 75000);
     var ub = msg("u", txt || "🎤 …");
     var burbuja = msg("n", "…"), partes = [], img = fotograma();
@@ -752,6 +780,7 @@
   }
   form.addEventListener("submit", function (ev) {
     ev.preventDefault(); var s = entrada.value.trim(); if (!s) { if (ocupado) cancelar(); return; } entrada.value = "";
+    if (live && live.ok && live.ws && live.ws.readyState === 1) { msg("u", s); live.nb = null; live.ub = null; try { live.ws.send(JSON.stringify({ realtimeInput: { text: s } })); } catch (er) { dlog("No pude enviar texto al modo en vivo: " + er.message); } return; }
     if (s.indexOf("/estado ") === 0) { limpiarTm(); var c = s.slice(8).trim().toLowerCase(); msg("n", fijar(c) ? "Estado: " + E[c].n + " (prueba manual)" : "Estado desconocido"); return; }
     enviar(s);
   });
@@ -862,12 +891,14 @@
     sinVoz = 0; enviar("", aWav(g.bufs, g.rate), { voz: true });
   }
   $("bmic").addEventListener("click", function () {
+    if (liveOn) { audio(); liveToggle(); return; }
     if (escuchando && sr) { try { sr.stop(); } catch (er) {} return; }
     if (grabando) { detenerMic(true); return; }
     if (ocupado || abriendo) return;
     escuchar();
   });
   $("bconv").addEventListener("click", function () {
+    if (liveOn) { audio(); liveToggle(); return; }
     if (conv) {
       apagarConv("Modo conversación apagado.");
       if (sr) { srCancel = true; try { sr.abort(); } catch (er) {} } else if (grabando) detenerMic(false);
@@ -1087,7 +1118,7 @@
     if (uiVis) refrescarSub();
   }
   function tamViz() {
-    var d = Math.min(window.devicePixelRatio || 1, 2);
+    var d = Math.min(window.devicePixelRatio || 1, Q().vd);
     cvz.width = Math.max(2, Math.round(innerWidth * d)); cvz.height = Math.max(2, Math.round(innerHeight * d));
     cvo.width = cvo.height = Math.round(150 * d);
   }
@@ -1124,8 +1155,9 @@
       ctx.stroke();
     }
   }
-  var vfr = 0;
+  var vfr = 0, vskip = 0;
   function dibujarViz(dt, now) {
+    if (Q().vs > 1 && (++vskip & 1)) return;
     var W = cvz.width, H = cvz.height, d = W / innerWidth, sec = now / 1000;
     if (++vfr % 6 === 0) rgbCss = Math.round(v.c[3] * 255) + "," + Math.round(v.c[4] * 255) + "," + Math.round(v.c[5] * 255);
     cz.clearRect(0, 0, W, H);
@@ -1187,7 +1219,7 @@
   $("bkb").addEventListener("click", function () { teclado = !teclado; aplicarUI(); if (teclado) setTimeout(function () { entrada.focus(); }, 120); });
   $("limp").addEventListener("change", function (ev) { limpio = ev.target.checked; ls("nexo_limpio", limpio ? "1" : "0"); aplicarUI(); });
   $("orbe").addEventListener("click", function () {
-    audio();
+    audio(); if (liveOn) { liveToggle(); return; }
     if (ocupado) { cancelar(); return; }
     if (hablando || pendNav > 0) { detenerVoz(); fijar("reposo"); if (conv) programarEscucha(150); else escuchar(); return; }
     if ((escuchando || grabando) && conv) { $("bconv").click(); return; }
@@ -1211,6 +1243,8 @@
     else if (a === "notas") msg("n", textoNotas());
     else if (a === "piramide") ponerHolo(!holo);
     else if (a === "controles") { $("pruebas").open = true; }
+    else if (a === "diag") abrirDiag();
+    else if (a === "live") { $("liveon").checked = !liveOn; $("liveon").dispatchEvent(new Event("change")); if (liveOn && !live) liveToggle(); }
   });
 
   // ---------- Temporizadores y alarmas ----------
@@ -1405,4 +1439,164 @@
   $("inst").addEventListener("click", function () { if (instalar) { instalar.prompt(); instalar = null; $("inst").style.display = "none"; } });
   window.addEventListener("appinstalled", function () { $("inst").style.display = "none"; msg("n", "NEXO quedó instalado como app."); });
   if ("serviceWorker" in navigator && /^https:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(function () {});
+
+  // ================= v2.0: calidad, diagnóstico y modo en vivo =================
+  function aplicarCalidad() { cuenta = Q().n; $("cant").value = cuenta; ajustar(); tamViz(); $("calsel").value = calidad; }
+  $("calsel").value = calidad; $("cant").value = cuenta;
+  $("calsel").addEventListener("change", function (ev) { calidad = ev.target.value; ls("nexo_cal", calidad); aplicarCalidad(); });
+  $("recal").addEventListener("click", function () { ls("nexo_q", null); calidad = "auto"; ls("nexo_cal", "auto"); nivelQ = "medio"; cal.fase = 0; tIni = 0; aplicarCalidad(); dlog("Recalibrando…"); });
+
+  var gpuTxt = "?";
+  try { var dbg = gl && gl.getExtension("WEBGL_debug_renderer_info"); gpuTxt = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : "(oculto)"; } catch (er) {}
+  function est(a) { if (!a.length) return "—"; var s = a.slice().sort(function (x, y) { return x - y; }), md = s[Math.floor(s.length / 2)]; return "mediana " + md + " ms, peor " + s[s.length - 1] + " ms (" + a.length + " medidas)"; }
+  function reporte() {
+    var n = ftN, a = Array.prototype.slice.call(FT, 0, n).sort(function (x, y) { return x - y; }), avg = 0, i;
+    for (i = 0; i < n; i++) avg += a[i]; avg = n ? avg / n : 0;
+    var p95 = n ? a[Math.min(n - 1, Math.floor(n * .95))] : 0, p99 = n ? a[Math.min(n - 1, Math.floor(n * .99))] : 0;
+    var L = [
+      "NEXO v2.0 · reporte " + new Date().toLocaleString("es-CO"),
+      "— Rendimiento —",
+      "FPS promedio: " + (avg ? (1000 / avg).toFixed(1) : "—") + " · cuadro medio " + avg.toFixed(1) + " ms · p95 " + p95.toFixed(1) + " ms · 1% peor " + (p99 ? (1000 / p99).toFixed(1) + " fps" : "—"),
+      "Calidad: " + calidad + (calidad === "auto" ? " → " + nivelQ + " (calibrado: " + (ls("nexo_qms") || "pendiente") + " ms)" : "") + " · partículas " + cuenta + " · shader " + (Q().lite ? "ligero" : "completo"),
+      "Pantalla: " + innerWidth + "×" + innerHeight + " css · DPR dispositivo " + (window.devicePixelRatio || 1) + " · DPR usado " + dpr.toFixed(2) + " · lienzo " + cv.width + "×" + cv.height + " · visualizador x" + Q().vd,
+      "GPU: " + gpuTxt,
+      "Memoria: " + (navigator.deviceMemory || "?") + " GB · núcleos: " + (navigator.hardwareConcurrency || "?"),
+      "Modo holograma: " + (holo ? "sí" : "no") + " · pantalla limpia: " + (limpio ? "sí" : "no"),
+      "— Voz y respuesta —",
+      "Hasta el primer texto: " + est(M.txt),
+      "Hasta que empieza la voz (modo normal): " + est(M.aud),
+      "Voz de Gemini (TTS): ok " + M.ttsOk + " · fallos " + M.ttsFail + " · tiempo " + est(M.ttsMs) + (Date.now() - ttsMalo < 300000 ? " · USANDO VOZ DEL NAVEGADOR por fallo reciente" : ""),
+      "Voz elegida: " + selVoz.value + " · motor de micrófono: " + motorMic,
+      "Modo en vivo: " + (liveOn ? "activado" : "apagado") + " · estado: " + M.live.estado + " · conexión: " + (M.live.setupMs ? M.live.setupMs + " ms" : "—") + " · 1er audio tras tu última palabra: " + est(M.live.audioMs) + " · cierres: " + M.live.cierres + (M.live.ultimo ? " · último cierre: " + M.live.ultimo : ""),
+      "— Últimos avisos —"
+    ].concat(DL.length ? DL : ["(ninguno)"]).concat(["", "Navegador: " + navigator.userAgent]);
+    return L.join("\n");
+  }
+  var diagT = 0;
+  function abrirDiag() { $("diag").classList.add("abierta"); $("diagt").textContent = reporte(); clearInterval(diagT); diagT = setInterval(function () { $("diagt").textContent = reporte(); }, 1000); }
+  function cerrarDiag() { $("diag").classList.remove("abierta"); clearInterval(diagT); }
+  $("diagx").addEventListener("click", cerrarDiag);
+  $("diagc").addEventListener("click", function () {
+    var t = reporte(), b = $("diagc");
+    function ok() { b.textContent = "¡Copiado!"; setTimeout(function () { b.textContent = "Copiar reporte"; }, 1800); }
+    try { navigator.clipboard.writeText(t).then(ok, function () { window.prompt("Copia este reporte:", t); }); } catch (er) { window.prompt("Copia este reporte:", t); }
+  });
+
+  // ---------- Modo en vivo: Gemini Live (voz a voz por WebSocket) ----------
+  var LIVE_MODEL = "models/gemini-3.1-flash-live-preview";
+  var LIVE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=";
+  var liveOn = ls("nexo_live") === "1", live = null, liveInt = ls("nexo_liveint") === "1", liveHid = 0;
+  $("liveon").checked = liveOn; $("liveint").checked = liveInt;
+  $("liveon").addEventListener("change", function (ev) { liveOn = ev.target.checked; ls("nexo_live", liveOn ? "1" : "0"); if (!liveOn && live) liveStop("Modo en vivo apagado."); else if (liveOn) msg("n", "Modo en vivo activado. Toca el círculo para empezar a hablar; vuelve a tocarlo para terminar."); });
+  $("liveint").addEventListener("change", function (ev) { liveInt = ev.target.checked; ls("nexo_liveint", liveInt ? "1" : "0"); });
+  function marcarLive() { $("orbe").classList.toggle("on", !!live); $("bconv").classList.toggle("on", !!live); }
+  function liveToggle() { if (live) liveStop("Modo en vivo detenido."); else liveStart(); }
+  function liveStart() {
+    if (live) return;
+    if (!clave && !pedirClave()) { msg("e", "Necesito tu clave de Gemini."); return; }
+    if (!window.isSecureContext || !navigator.mediaDevices || !window.WebSocket) { msg("e", "El modo en vivo necesita una página segura (https) y micrófono."); return; }
+    audio(); pararWake(); detenerVoz(); limpiarTm(); if (conv) apagarConv(); if (sr) { srCancel = true; try { sr.abort(); } catch (er) {} } if (grabando) detenerMic(false);
+    var L = live = { ws: null, st: null, src: null, pr: null, mute: null, ok: false, tNext: 0, srcs: [], ub: null, nb: null, uT: "", nT: "", hand: null, cerrado: false, tIni: performance.now(), tIn: 0, gateHasta: 0, turnoFin: false, modo: 0, tmo: 0, reconn: false };
+    M.live.estado = "conectando"; fijar("procesando"); etiqueta.textContent = "Conectando…"; marcarLive(); pantalla(true);
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function (st) {
+      if (live !== L) { st.getTracks().forEach(function (x) { x.stop(); }); return; }
+      L.st = st; liveAbrir(L);
+    }).catch(function (e) { if (live === L) liveStop(mensajeMic(e), true); });
+  }
+  function liveSetup(L) {
+    var voz = selVoz.value === "Navegador" ? "Kore" : selVoz.value;
+    var sys = sysAhora(); sys.parts[0].text += " Estás en una conversación de voz en vivo con el usuario: responde en una o dos frases, con voz natural y fluida, siempre con el mismo tono.";
+    var st = { model: LIVE_MODEL, generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } }, systemInstruction: sys, tools: TOOLS };
+    if (L.modo === 0) { st.inputAudioTranscription = {}; st.outputAudioTranscription = {}; st.sessionResumption = L.hand ? { handle: L.hand } : {}; st.contextWindowCompression = { slidingWindow: {} }; }
+    return { setup: st };
+  }
+  function liveAbrir(L) {
+    var ws; L.ok = false; clearTimeout(L.tmo);
+    try { ws = new WebSocket(LIVE_URL + encodeURIComponent(clave)); } catch (er) { liveFallo(L, er.message); return; }
+    ws.binaryType = "arraybuffer"; L.ws = ws; var dec = new TextDecoder();
+    L.tmo = setTimeout(function () { if (live === L && !L.ok) { dlog("Live: sin respuesta al conectar (10 s)"); try { ws.close(); } catch (er) {} } }, 10000);
+    ws.onopen = function () { try { ws.send(JSON.stringify(liveSetup(L))); } catch (er) { liveFallo(L, er.message); } };
+    ws.onmessage = function (ev) { var j; try { j = JSON.parse(typeof ev.data === "string" ? ev.data : dec.decode(ev.data)); } catch (er) { return; } try { liveMsg(L, j); } catch (er2) { dlog("Live msg: " + er2.message); } };
+    ws.onerror = function () { dlog("Live: error de conexión"); };
+    ws.onclose = function (ev) {
+      if (live !== L || L.ws !== ws) return; clearTimeout(L.tmo);
+      var motivo = (ev.code || "") + " " + (ev.reason || ""); M.live.cierres++; M.live.ultimo = motivo.trim() || "sin motivo"; dlog("Live cerrado: " + motivo);
+      if (L.reconn) { L.reconn = false; liveAbrir(L); return; }
+      if (!L.ok) { if (L.modo === 0 && !/API key|permission|401|403/i.test(motivo)) { L.modo = 1; M.live.modo = 1; dlog("Live: reintento con configuración mínima"); liveAbrir(L); return; } liveFallo(L, motivo); return; }
+      liveStop("Se cortó la conversación en vivo (" + (ev.reason || ev.code || "sin motivo") + "). Tócame para reconectar.", true);
+    };
+  }
+  function liveFallo(L, motivo) {
+    if (live !== L) return; liveOn = false; ls("nexo_live", "0"); $("liveon").checked = false;
+    liveStop("El modo en vivo no pudo conectar (" + (String(motivo).trim() || "sin detalle") + "). Lo apagué y sigo con el modo normal; el motivo queda en Diagnóstico.", true);
+  }
+  function b64Int16(pcm) { var u = new Uint8Array(pcm.buffer), s = ""; for (var i = 0; i < u.length; i += 0x2000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x2000)); return btoa(s); }
+  function liveMic(L) {
+    if (L.pr) return; var a = ac, ratio = a.sampleRate / 16000;
+    L.src = a.createMediaStreamSource(L.st); L.pr = a.createScriptProcessor(2048, 1, 1); L.mute = a.createGain(); L.mute.gain.value = 0;
+    L.pr.onaudioprocess = function (e) {
+      if (live !== L || !L.ok || !L.ws || L.ws.readyState !== 1) return;
+      var inp = e.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio), pcm = new Int16Array(n), gate = !liveInt && (hablando || performance.now() < L.gateHasta), i, j, s, rms = 0;
+      if (!gate) for (i = 0; i < n; i++) { var a0 = Math.floor(i * ratio), b0 = Math.min(inp.length, Math.floor((i + 1) * ratio)); s = 0; for (j = a0; j < b0; j++) s += inp[j]; s /= Math.max(1, b0 - a0); rms += s * s; pcm[i] = lim(s, -1, 1) * 32767; }
+      if (!gate) { rms = Math.sqrt(rms / n); if (rms > .02) pulso = Math.max(pulso, Math.min(1.1, rms * 7)); }
+      try { L.ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64Int16(pcm), mimeType: "audio/pcm;rate=16000" } } })); } catch (er) {}
+    };
+    L.src.connect(anM); L.src.connect(L.pr); L.pr.connect(L.mute); L.mute.connect(a.destination);
+  }
+  function liveCortar(L) { L.srcs.forEach(function (s) { try { s.onended = null; s.stop(); } catch (er) {} }); L.srcs = []; L.tNext = 0; hablando = false; L.gateHasta = performance.now() + 300; }
+  function liveAudio(L, d) {
+    var a = ac, f = b64Pcm(d.data), m = /rate=(\d+)/.exec(d.mimeType || ""), bf = a.createBuffer(1, f.length, m ? +m[1] : 24000);
+    bf.copyToChannel(f, 0);
+    if (!L.nb) { L.nb = msg("n", "🔊"); L.nT = ""; if (L.tIn) { M.live.audioMs.push(Math.round(performance.now() - L.tIn)); if (M.live.audioMs.length > 20) M.live.audioMs.shift(); } fijar(emo || "respuesta"); L.turnoFin = false; }
+    var s = a.createBufferSource(); s.buffer = bf; s.connect(anS); var t0 = Math.max(a.currentTime + .04, L.tNext); s.start(t0); L.tNext = t0 + bf.duration; L.srcs.push(s); hablando = true;
+    s.onended = function () { var i = L.srcs.indexOf(s); if (i >= 0) L.srcs.splice(i, 1); if (!L.srcs.length && live === L) { hablando = false; L.gateHasta = performance.now() + 350; if (L.turnoFin) liveFinTurno(L); } };
+  }
+  function liveFinTurno(L) {
+    if (L.uT || L.nT) { hist.push({ role: "user", parts: [{ text: L.uT || "(voz)" }] }, { role: "model", parts: [{ text: L.nT || "(respuesta en voz)" }] }); if (hist.length > 16) hist = hist.slice(-16); ls("nexo_hist", JSON.stringify(hist)); }
+    L.ub = null; L.nb = null; L.uT = ""; L.nT = ""; L.turnoFin = false; L.tIn = 0; if (actual !== "error") fijar("escucha");
+  }
+  function liveMsg(L, j) {
+    if (j.setupComplete !== undefined) {
+      L.ok = true; clearTimeout(L.tmo); M.live.estado = "en vivo"; M.live.setupMs = Math.round(performance.now() - L.tIni); M.live.modo = L.modo; liveMic(L); fijar("escucha"); pulso = 1;
+      if (!L.avisado) { L.avisado = true; msg("n", "En vivo. Háblame con naturalidad." + (liveInt ? "" : " (Espera a que termine de hablar; para cortarme, toca el círculo.)")); }
+      return;
+    }
+    if (j.sessionResumptionUpdate && j.sessionResumptionUpdate.newHandle) L.hand = j.sessionResumptionUpdate.newHandle;
+    if (j.goAway) { dlog("Live: el servidor pidió reconectar"); if (!L.reconn && L.ok) { L.reconn = true; L.ok = false; setTimeout(function () { if (live === L && L.ws) { try { L.ws.close(); } catch (er) {} } }, 400); } return; }
+    if (j.toolCall && j.toolCall.functionCalls) {
+      var fc = j.toolCall.functionCalls; fijar("procesando");
+      Promise.all(fc.map(function (c) { return ejecutar(c.name, c.args || {}).catch(function (e) { return { ok: false, error: String(e && e.message || e) }; }); })).then(function (res) {
+        if (live !== L || !L.ws || L.ws.readyState !== 1) return;
+        L.ws.send(JSON.stringify({ toolResponse: { functionResponses: fc.map(function (c, i) { return { id: c.id, name: c.name, response: { output: res[i] || { ok: false } } }; }) } }));
+        if (!hablando) fijar("escucha");
+      });
+      return;
+    }
+    var sc = j.serverContent; if (!sc) return;
+    if (sc.interrupted) { liveCortar(L); L.nb = null; L.nT = ""; fijar("escucha"); }
+    if (sc.inputTranscription && sc.inputTranscription.text) {
+      if (L.turnoFin || (L.nb && !hablando)) liveFinTurno(L);
+      if (!L.ub) { L.ub = msg("u", "🎤 …"); L.uT = ""; }
+      L.uT += sc.inputTranscription.text; L.ub.textContent = L.uT.trim() || "🎤 …"; L.tIn = performance.now(); if (!hablando) fijar("escucha"); pulso = Math.max(pulso, .7);
+    }
+    if (sc.modelTurn && sc.modelTurn.parts) sc.modelTurn.parts.forEach(function (p) { if (p.inlineData && p.inlineData.data) liveAudio(L, p.inlineData); });
+    if (sc.outputTranscription && sc.outputTranscription.text) {
+      if (!L.nb) { L.nb = msg("n", ""); L.nT = ""; }
+      L.nT += sc.outputTranscription.text; L.nb.textContent = L.nT.trim();
+    }
+    if (sc.turnComplete) { L.turnoFin = true; if (!L.srcs.length) liveFinTurno(L); }
+  }
+  function liveStop(texto, err) {
+    var L = live; if (!L) return; live = null; clearTimeout(L.tmo); L.cerrado = true; M.live.estado = "apagado";
+    try { L.ws.onclose = null; L.ws.onmessage = null; L.ws.close(); } catch (er) {}
+    liveCortar(L); try { L.pr.onaudioprocess = null; L.pr.disconnect(); L.src.disconnect(); L.mute.disconnect(); } catch (er2) {}
+    if (L.st) L.st.getTracks().forEach(function (x) { x.stop(); });
+    hablando = false; marcarLive(); fijar(err ? "error" : "reposo"); if (texto) msg(err ? "e" : "n", texto);
+    if (err) tm.push(setTimeout(function () { if (!live) fijar("reposo"); }, 4000));
+    if (!conv) pantalla(wakeOn); if (wakeOn) programarWake(900);
+  }
+  document.addEventListener("visibilitychange", function () {
+    clearTimeout(liveHid); if (document.hidden && live) liveHid = setTimeout(function () { liveStop("Detuve el modo en vivo porque la app pasó a segundo plano. Tócame para volver."); }, 25000);
+  });
+
 })();
