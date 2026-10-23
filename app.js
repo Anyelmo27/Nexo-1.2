@@ -514,6 +514,7 @@
     if (n === "contacto") return contacto(a);
     if (n === "musica") return mediaCtl(a);
     if (n === "pedir_archivo") return pedirArchivo(a);
+    if (n.indexOf("roku_") === 0) return rokuHerr(n, a);
     if (n === "sentir") { if (E[a.emocion]) { emo = a.emocion; return { ok: true }; } return { ok: false, error: "Emoción desconocida" }; }
     return { ok: false, error: "Herramienta desconocida" };
   }
@@ -585,7 +586,17 @@
     { name: "musica", description: "Controla la música y los videos del celular que el usuario elige (elegir abre el selector de archivos).", parameters: P({ accion: { type: "string", enum: ["elegir", "reproducir", "pausar", "continuar", "siguiente", "anterior", "detener", "volumen", "que_suena"] }, busqueda: { type: "string" }, nivel: { type: "number" } }, ["accion"]) },
     { name: "pedir_archivo", description: "Pide al usuario que elija un archivo (foto, PDF, audio o texto) para que lo veas. motivo = lo que debes hacer con él.", parameters: P({ motivo: { type: "string" } }) }
   );
-  NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1;
+  TOOLS[0].functionDeclarations.push(
+    { name: "roku_tecla", description: "Envía una tecla del control remoto de la TV Roku: home, atras, ok, arriba, abajo, izquierda, derecha, info, play, pausa, adelante, atrasar, repetir, canal+, canal-, hdmi1 a hdmi4, antena.", parameters: P({ tecla: { type: "string" } }, ["tecla"]) },
+    { name: "roku_app", description: "Abre una app en la TV Roku por su nombre: youtube, netflix, disney, prime, max, spotify u otra instalada.", parameters: P({ nombre: { type: "string" } }, ["nombre"]) },
+    { name: "roku_volumen", description: "Cambia el volumen de la TV Roku por pasos (no por porcentaje): subir, bajar o mute. veces de 1 a 25.", parameters: P({ accion: { type: "string", enum: ["subir", "bajar", "mute"] }, veces: { type: "number" } }, ["accion"]) },
+    { name: "roku_buscar", description: "Busca en la búsqueda global de la TV Roku (películas, series, canales). No busca dentro de una app concreta.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
+    { name: "roku_escribir", description: "Escribe un texto letra por letra en el campo activo de la TV Roku, por ejemplo el buscador de YouTube.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
+    { name: "roku_estado", description: "Consulta la TV Roku: si está encendida, qué app está abierta y qué se reproduce." },
+    { name: "roku_energia", description: "Enciende o apaga la TV Roku. Para apagar, NEXO pide confirmación: pregunta al usuario y solo envía confirmado=true cuando haya dicho que sí.", parameters: P({ accion: { type: "string", enum: ["encender", "apagar"] }, confirmado: { type: "boolean" } }, ["accion"]) }
+  );
+  SYS.parts[0].text += " TV Roku: la controlas con roku_tecla, roku_app, roku_volumen, roku_buscar, roku_escribir, roku_estado y roku_energia. El volumen va por pasos, no por porcentaje, y no ves la pantalla de la TV, solo la app activa y lo que se reproduce. Para apagar la TV pregunta primero y usa confirmado=true solo cuando el usuario diga que sí. Si una herramienta de la TV dice que no llega al puente, díselo en una frase: inicia el puente en Termux con ./start_bridge.sh. Para abrir algo en la TV usa roku_app; para abrir una app en el celular usa abrir_app_movil.";
+  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1;
   SYS.parts[0].text += " Respondes como asistente de voz cálido y con personalidad: una o dos frases cortas y naturales (tres como máximo), sin listas, markdown ni emojis, porque se leen en voz alta; empieza por la respuesta, sin rodeos. Después de usar herramientas cuenta en una frase lo que hiciste; nunca respondas solo «Listo». Tus partículas forman cualquier cosa: palabras, números y la hora con escribir_con_particulas o mostrar_hora; objetos y animales con forma_con_emoji; dibujos propios con forma_con_trazo; cosas que se mueven (un gato caminando, un pájaro volando, un coche) con figura_animada, o con el parámetro movimiento y la herramienta animar. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz, brillo_app, temporizador (también alarmas a una hora), temporizadores (listar o cancelar), notas (nota_guardar, nota_leer, nota_borrar: listas de compras, ideas, apuntes), contacto (llamar, sms, whatsapp; NEXO deja un botón en pantalla y el usuario confirma con un toque), musica (archivos del celular que el usuario elige: elegir, reproducir, pausar, continuar, siguiente, anterior, detener, volumen) y pedir_archivo para que te muestre una foto, PDF, audio o texto. Para música en internet usa abrir_app_movil con youtube o spotify. Si piden el brillo o el volumen del sistema, o abrir el administrador de archivos, explica que desde una web no es posible y ofrece lo que sí puedes. Usa recordar para datos duraderos del usuario (gustos, nombre, rutinas) y las notas para apuntes y listas.";
   function sysAhora() {
     var t = new Date().toLocaleString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/[  ]/g, " ");
@@ -649,7 +660,7 @@
   function limpiarTm() { tm.forEach(clearTimeout); tm = []; }
   function b64Pcm(b64) { var s = atob(b64), n = s.length >> 1, f = new Float32Array(n); for (var i = 0; i < n; i++) { var x = s.charCodeAt(2 * i) | (s.charCodeAt(2 * i + 1) << 8); if (x >= 32768) x -= 65536; f[i] = x / 32768; } return f; }
   function detenerVoz() { genG++; colaG = []; tocandoG = false; if (fuente) { try { fuente.onended = null; fuente.stop(); } catch (e) {} fuente = null; } hablando = false; pendNav = 0; if (window.speechSynthesis) speechSynthesis.cancel(); }
-  function fin() { if (pendNav > 0 || hablando || streaming || grabando || escuchando || actual === "procesando") return; fijar("reposo"); if (conv) programarEscucha(700); else if (wakeOn) programarWake(900); }
+  function fin() { if (pendNav > 0 || hablando || streaming || grabando || escuchando || actual === "procesando") return; fijar("reposo"); if (conv) programarEscucha(700); else if (esperaConf && !live) { clearTimeout(tConf2); tConf2 = setTimeout(function () { if (esperaConf && !ocupado && !escuchando && !grabando && !abriendo && !hablando && !pendNav && actual === "reposo") escuchar(); }, 500); } else if (wakeOn) programarWake(900); }
   var vozNav = ls("nexo_vozn") || "", volV = ls("nexo_vol") === null ? 1 : lim(+ls("nexo_vol"), 0, 1), gv = null;
   function vocesEs() { return (window.speechSynthesis ? speechSynthesis.getVoices() : []).filter(function (x) { return /^es/i.test(x.lang); }); }
   function elegirVoz() {
@@ -932,6 +943,7 @@
   }
   function rapido(s) {
     var m = norm(s); if (m.length > 60) return false;
+    if (rokuRapido(s, m)) return true;
     if (/^(oye |nexo )?(por favor )?(que hora es|que horas son|que hora tienes|dime la hora|dame la hora|me dices la hora|muestrame la hora|muestra la hora|la hora|hora)( ahora| por favor| actual)?$/.test(m)) {
       msg("u", s); mostrarHora(); var t = horaHablada(); msg("n", t); fijar("respuesta"); pulso = 1; decir(t); return true;
     }
@@ -1468,6 +1480,7 @@
       "Voz de Gemini (TTS): ok " + M.ttsOk + " · fallos " + M.ttsFail + " · tiempo " + est(M.ttsMs) + (Date.now() - ttsMalo < 300000 ? " · USANDO VOZ DEL NAVEGADOR por fallo reciente" : ""),
       "Voz elegida: " + selVoz.value + " · motor de micrófono: " + motorMic,
       "Modo en vivo: " + (liveOn ? "activado" : "apagado") + " · estado: " + M.live.estado + " · conexión: " + (M.live.setupMs ? M.live.setupMs + " ms" : "—") + " · 1er audio tras tu última palabra: " + est(M.live.audioMs) + " · cierres: " + M.live.cierres + (M.live.ultimo ? " · último cierre: " + M.live.ultimo : ""),
+      "Puente de la TV: " + (rokuVivo ? "ha respondido antes" : "nunca ha respondido") + " · " + ROKU_URL + " · último: " + (M.rokuUlt || "—"),
       "— Últimos avisos —"
     ].concat(DL.length ? DL : ["(ninguno)"]).concat(["", "Navegador: " + navigator.userAgent]);
     return L.join("\n");
@@ -1597,6 +1610,113 @@
   }
   document.addEventListener("visibilitychange", function () {
     clearTimeout(liveHid); if (document.hidden && live) liveHid = setTimeout(function () { liveStop("Detuve el modo en vivo porque la app pasó a segundo plano. Tócame para volver."); }, 25000);
+  });
+
+
+  // ================= v2.1: TV Roku (puente local en Termux) =================
+  var ROKU_URL = ls("nexo_roku_url") || "http://127.0.0.1:8765", rokuVivo = ls("nexo_roku_ok") === "1";
+  var MSG_PUENTE = "No llego al puente de la TV. Inicia el puente en Termux con ./start_bridge.sh";
+  var pendConf = null, esperaConf = false, tConf = 0, tConf2 = 0;
+  // Llamada al puente: siempre devuelve un objeto {ok, hecho|error}; si el puente no está, lo dice con una frase clara
+  function rokuLlamar(ruta, cuerpo) {
+    var ctl = new AbortController(), tt = setTimeout(function () { ctl.abort(); }, 9000), op = { signal: ctl.signal };
+    if (cuerpo) { op.method = "POST"; op.headers = { "Content-Type": "application/json" }; op.body = JSON.stringify(cuerpo); }
+    return fetch(ROKU_URL + ruta, op).then(function (r) { clearTimeout(tt); return r.json(); }).then(function (j) {
+      if (j && typeof j === "object") { rokuVivo = true; ls("nexo_roku_ok", "1"); M.rokuUlt = ruta + " → " + (j.ok === false ? j.error : "ok"); if (j.ok === false) dlog("Roku " + ruta + ": " + j.error); return j; }
+      throw new Error("respuesta no válida");
+    }).catch(function (e) { clearTimeout(tt); M.rokuUlt = ruta + " → sin puente (" + (e && e.message) + ")"; dlog("Roku: no llego al puente (" + (e && e.message) + ")"); return { ok: false, puente: false, error: MSG_PUENTE }; });
+  }
+  var roku = {
+    estado: function () { return rokuLlamar("/estado"); },
+    tecla: function (t) { return rokuLlamar("/tecla", { tecla: t }); },
+    volumen: function (accion, veces) { return rokuLlamar("/volumen", { accion: accion, veces: veces || 1 }); },
+    app: function (nombre) { return rokuLlamar("/app", { nombre: nombre }); },
+    buscar: function (texto) { return rokuLlamar("/buscar", { texto: texto }); },
+    escribir: function (texto) { return rokuLlamar("/escribir", { texto: texto }); },
+    reproduccion: function (accion) { return rokuLlamar("/reproduccion", { accion: accion }); },
+    energia: function (accion) { return rokuLlamar("/energia", { accion: accion }); }
+  };
+  // El holograma reacciona: texto corto con partículas y emoción de confirmado o error
+  function rokuEfecto(j, txt) {
+    var bien = !(j && j.ok === false); emo = bien ? "feliz" : "preocupado"; pulso = Math.max(pulso, 1);
+    if (bien && txt) { try { local("escribir_con_particulas", { texto: txt, segundos: 2.5 }); } catch (er) {} }
+  }
+  function rokuMostrar(j) {
+    if (j && j.ok === false) { msg("e", j.error); fijar("error"); pulso = 1; decir(j.error); tm.push(setTimeout(function () { fijar("reposo"); }, 4500)); }
+    else mostrarResultado(j);
+  }
+  function txtVol(accion, j) { var n = (j && j.veces) || 1; return /^(sub|up|mas|\+)/i.test(accion) ? "VOL +" + n : /^(baj|down|menos|-)/i.test(accion) ? "VOL -" + n : "MUTE"; }
+  // ---- confirmación (voz, texto o botones) antes de acciones sensibles
+  function limpiarConf() {
+    pendConf = null; esperaConf = false; clearTimeout(tConf); clearTimeout(tConf2);
+    ["confs", "confn"].forEach(function (id) { var v = $("acc").querySelector('[data-id="' + id + '"]'); if (v) v.remove(); });
+  }
+  function pedirConfirmacion(fn) {
+    limpiarConf(); pendConf = fn; esperaConf = true; tConf = setTimeout(limpiarConf, 25000);
+    chip("✔ Sí, apagar", function () { var f = pendConf; limpiarConf(); if (f) f(); }, "confs");
+    chip("✖ No", function () { limpiarConf(); }, "confn");
+  }
+  function apagarTV() { return roku.energia("apagar").then(function (j) { rokuEfecto(j, "OFF"); return j; }); }
+  // ---- herramientas para la IA (mismo mecanismo que las demás)
+  function rokuHerr(n, a) {
+    if (n === "roku_estado") return roku.estado().then(function (j) { if (j && j.ok !== false) rokuEfecto(j, ""); return j; });
+    if (n === "roku_tecla") return roku.tecla(a.tecla).then(function (j) { rokuEfecto(j, /^(play|pausa)$/i.test(a.tecla || "") ? String(a.tecla).toUpperCase() : ""); return j; });
+    if (n === "roku_app") return roku.app(a.nombre).then(function (j) { rokuEfecto(j, j && j.app ? String(j.app).toUpperCase().slice(0, 12) : ""); return j; });
+    if (n === "roku_volumen") return roku.volumen(a.accion, a.veces).then(function (j) { rokuEfecto(j, txtVol(String(a.accion || ""), j)); return j; });
+    if (n === "roku_buscar") return roku.buscar(a.texto).then(function (j) { rokuEfecto(j, "BUSCAR"); return j; });
+    if (n === "roku_escribir") return roku.escribir(a.texto).then(function (j) { rokuEfecto(j, ""); return j; });
+    if (n === "roku_energia") {
+      if (/^(apag|off)/i.test(norm(a.accion || ""))) {
+        if (a.confirmado === true) { limpiarConf(); return apagarTV(); }
+        pedirConfirmacion(function () { apagarTV().then(rokuMostrar); });
+        return { ok: true, pendiente: true, hecho: "Falta confirmar. Pregunta al usuario si quiere apagar la TV y no la apagues hasta que diga que sí." };
+      }
+      return roku.energia("encender").then(function (j) { rokuEfecto(j, "ON"); return j; });
+    }
+    return { ok: false, error: "Herramienta desconocida" };
+  }
+  // ---- comandos instantáneos, sin IA
+  var NUMR = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+  var TELE = "(?:tele|tv|television|televisor|roku)", PRE = "^(?:oye |nexo |por favor )*";
+  var RX_VOL = new RegExp(PRE + "(sube|subele|aumenta|aumentale|baja|bajale|reduce|disminuye)(?: un poco| mas| otro poco)?(?: el| al| a la)? ?volumen(?: (?:de|a) la " + TELE + "| del televisor)?(?: (\\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)(?: veces| pasos| niveles| rayitas| puntos)?)?(?: por favor)?$");
+  var RX_VOL2 = new RegExp(PRE + "(mas|menos) volumen(?: (?:de|a) la " + TELE + ")?$");
+  var RX_MUTE = new RegExp(PRE + "(?:silencia|mutea|silenciar|mutear|mute|silencio|sin sonido|quita el sonido|quitale el sonido)(?: (?:a |de )?(?:la |el )?" + TELE + ")?(?: por favor)?$");
+  var RX_PAUSA = new RegExp(PRE + "(?:pausa|pausar|pausalo|pausala|pon pausa|detenlo|para el video|pausa el video)(?: (?:a |de )?(?:la |el )?" + TELE + ")?(?: por favor)?$");
+  var RX_PLAY = new RegExp(PRE + "(?:play|dale play|pon play|reanuda|reanudar|continua|continuar|sigue|reproduce|reproducir|quita la pausa)(?: (?:a |de )?(?:la |el )?" + TELE + "| el video)?(?: por favor)?$");
+  var RX_HOME = new RegExp(PRE + "(?:ve |ir |regresa |vuelve |llevame )?(?:al |a )?(?:inicio|home|menu principal|pantalla principal)(?: de la " + TELE + ")?$");
+  var RX_APP = new RegExp(PRE + "(?:abre|abrir|pon|ponme|ponla|prende|lanza|inicia|ve a|enciende)(?: la app de| la aplicacion de| la app| el| la)? ?(youtube|netflix|disney(?: plus| \\+|\\+)?|prime(?: video)?|amazon prime|amazon|hbo(?: max)?|max|spotify)(?: (?:en|de) (?:la )?" + TELE + ")?(?: por favor)?$");
+  var RX_OFF = new RegExp(PRE + "(?:apaga|apagar|desactiva|apagame)(?: la| el)? ?" + TELE + "(?: por favor)?$");
+  var RX_ON = new RegExp(PRE + "(?:enciende|encender|prende|prender|activa|enciendeme)(?: la| el)? ?" + TELE + "(?: por favor)?$");
+  function rokuRapido(s, m) {
+    if (pendConf) {
+      if (/^(si|claro|dale|ok|okay|vale|confirmo|confirmado|hazlo|adelante|afirmativo|apagala|apagalo|si apagala|si apagalo|si por favor|si apaga)( por favor| gracias)?$/.test(m)) { msg("u", s); var f = pendConf; limpiarConf(); f(); return true; }
+      if (/^(no|nel|cancela|cancelar|cancelalo|mejor no|no gracias|detente|olvidalo|negativo|no la apagues|no apagues)( gracias| por favor)?$/.test(m)) { msg("u", s); limpiarConf(); mostrarResultado({ ok: true, hecho: "De acuerdo, no la apago." }); return true; }
+      limpiarConf();
+    }
+    var tele = new RegExp("\\b" + TELE + "\\b").test(m), base = tele || (rokuVivo && !(med && !med.paused && !med.ended)), r;
+    function ir(prom, viz) { msg("u", s); fijar("procesando"); prom.then(function (j) { rokuEfecto(j, viz ? viz(j) : ""); rokuMostrar(j); }); return true; }
+    if (RX_OFF.test(m)) {
+      msg("u", s); var q = "¿Apago la tele? Dime sí o no.";
+      pedirConfirmacion(function () { fijar("procesando"); apagarTV().then(rokuMostrar); }); msg("n", q); fijar("respuesta"); pulso = 1; decir(q); return true;
+    }
+    if (RX_ON.test(m)) return ir(roku.energia("encender"), function () { return "ON"; });
+    if (!base) return false;
+    if ((r = RX_VOL.exec(m))) {
+      var n = r[2] ? (/^\d+$/.test(r[2]) ? +r[2] : NUMR[r[2]]) : 3, acc = /^(sube|subele|aumenta|aumentale)$/.test(r[1]) ? "subir" : "bajar";
+      return ir(roku.volumen(acc, n), function (j) { return txtVol(acc, j); });
+    }
+    if ((r = RX_VOL2.exec(m))) { var ac2 = r[1] === "mas" ? "subir" : "bajar"; return ir(roku.volumen(ac2, 3), function (j) { return txtVol(ac2, j); }); }
+    if (RX_MUTE.test(m)) return ir(roku.volumen("mute", 1), function () { return "MUTE"; });
+    if (RX_PAUSA.test(m)) return ir(roku.reproduccion("pausa"), function () { return "PAUSA"; });
+    if (RX_PLAY.test(m)) return ir(roku.reproduccion("play"), function () { return "PLAY"; });
+    if (RX_HOME.test(m)) return ir(roku.tecla("home"), function () { return ""; });
+    if ((r = RX_APP.exec(m))) return ir(roku.app(r[1]), function (j) { return j && j.app ? String(j.app).toUpperCase().slice(0, 12) : ""; });
+    return false;
+  }
+  // Botón del menú: probar la conexión con la TV
+  $("hoja").addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("button[data-a=roku]") : null; if (!b) return;
+    msg("n", "Probando la conexión con la TV…"); roku.estado().then(function (j) { if (j && j.ok !== false) { rokuEfecto(j, "TV OK"); mostrarResultado({ ok: true, hecho: j.hecho }); } else rokuMostrar(j); });
   });
 
 })();
