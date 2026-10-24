@@ -1,0 +1,10 @@
+PUENTE ROKU PARA NEXO
+=====================
+1) Copia esta carpeta a tu Termux (o Ubuntu en Termux), por ejemplo a ~/puente-roku
+2) Una sola vez:   bash instalar.sh
+3) Cada vez que quieras usar la TV con NEXO:   ./start_bridge.sh
+   (deja esa terminal abierta; en Android quita la optimización de batería a Termux)
+4) Prueba:   roku estado     y     roku vol+
+
+La TV debe tener "Control por apps móviles" en Permisivo.
+Su IP y tu dominio de NEXO están en ~/.roku.json  (si cambia la IP, el puente la vuelve a buscar solo).
