@@ -590,12 +590,14 @@
     { name: "roku_tecla", description: "Envía una tecla del control remoto de la TV Roku: home, atras, ok, arriba, abajo, izquierda, derecha, info, play, pausa, adelante, atrasar, repetir, canal+, canal-, hdmi1 a hdmi4, antena.", parameters: P({ tecla: { type: "string" } }, ["tecla"]) },
     { name: "roku_app", description: "Abre una app en la TV Roku por su nombre: youtube, netflix, disney, prime, max, spotify u otra instalada.", parameters: P({ nombre: { type: "string" } }, ["nombre"]) },
     { name: "roku_volumen", description: "Cambia el volumen de la TV Roku por pasos (no por porcentaje): subir, bajar o mute. veces de 1 a 25.", parameters: P({ accion: { type: "string", enum: ["subir", "bajar", "mute"] }, veces: { type: "number" } }, ["accion"]) },
+    { name: "roku_youtube", description: "Busca un video o canción en YouTube y lo reproduce directo en la TV Roku (abre el primer resultado). Úsala cuando pidan poner, reproducir o buscar música o videos de YouTube en la tele.", parameters: P({ busqueda: { type: "string", description: "Nombre de la canción, artista o video" } }, ["busqueda"]) },
     { name: "roku_buscar", description: "Busca en la búsqueda global de la TV Roku (películas, series, canales). No busca dentro de una app concreta.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "roku_escribir", description: "Escribe un texto letra por letra en el campo activo de la TV Roku, por ejemplo el buscador de YouTube.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "roku_estado", description: "Consulta la TV Roku: si está encendida, qué app está abierta y qué se reproduce." },
     { name: "roku_energia", description: "Enciende o apaga la TV Roku. Para apagar, NEXO pide confirmación: pregunta al usuario y solo envía confirmado=true cuando haya dicho que sí.", parameters: P({ accion: { type: "string", enum: ["encender", "apagar"] }, confirmado: { type: "boolean" } }, ["accion"]) }
   );
-  SYS.parts[0].text += " TV Roku: la controlas con roku_tecla, roku_app, roku_volumen, roku_buscar, roku_escribir, roku_estado y roku_energia. El volumen va por pasos, no por porcentaje, y no ves la pantalla de la TV, solo la app activa y lo que se reproduce. Para apagar la TV pregunta primero y usa confirmado=true solo cuando el usuario diga que sí. Si una herramienta de la TV dice que no llega al puente, díselo en una frase: inicia el puente en Termux con ./start_bridge.sh. Para abrir algo en la TV usa roku_app; para abrir una app en el celular usa abrir_app_movil.";
+  SYS.parts[0].text += " TV Roku: la controlas con roku_tecla, roku_app, roku_volumen, roku_buscar, roku_escribir, roku_estado y roku_energia. El volumen va por pasos, no por porcentaje, y no ves la pantalla de la TV, solo la app activa y lo que se reproduce. Para apagar la TV pregunta primero y usa confirmado=true solo cuando el usuario diga que sí. Si una herramienta de la TV dice que no llega al puente, díselo en una frase: inicia el puente en Termux con ./start_bridge.sh. Para poner una canción o video de YouTube en la TV usa roku_youtube (no roku_buscar). Para abrir algo en la TV usa roku_app; para abrir una app en el celular usa abrir_app_movil.";
+  SYS.parts[0].text += " Sé preciso con lo que haces: nunca digas que guardaste, recordaste, aprendiste o ejecutaste algo si no llamaste a la herramienta que lo hace (para guardar datos usa recordar); no tienes acceso al brillo ni al volumen del sistema del celular desde esta web, solo al de la app y al de tu voz; y no inventes capacidades.";
   NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1;
   SYS.parts[0].text += " Respondes como asistente de voz cálido y con personalidad: una o dos frases cortas y naturales (tres como máximo), sin listas, markdown ni emojis, porque se leen en voz alta; empieza por la respuesta, sin rodeos. Después de usar herramientas cuenta en una frase lo que hiciste; nunca respondas solo «Listo». Tus partículas forman cualquier cosa: palabras, números y la hora con escribir_con_particulas o mostrar_hora; objetos y animales con forma_con_emoji; dibujos propios con forma_con_trazo; cosas que se mueven (un gato caminando, un pájaro volando, un coche) con figura_animada, o con el parámetro movimiento y la herramienta animar. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz, brillo_app, temporizador (también alarmas a una hora), temporizadores (listar o cancelar), notas (nota_guardar, nota_leer, nota_borrar: listas de compras, ideas, apuntes), contacto (llamar, sms, whatsapp; NEXO deja un botón en pantalla y el usuario confirma con un toque), musica (archivos del celular que el usuario elige: elegir, reproducir, pausar, continuar, siguiente, anterior, detener, volumen) y pedir_archivo para que te muestre una foto, PDF, audio o texto. Para música en internet usa abrir_app_movil con youtube o spotify. Si piden el brillo o el volumen del sistema, o abrir el administrador de archivos, explica que desde una web no es posible y ofrece lo que sí puedes. Usa recordar para datos duraderos del usuario (gustos, nombre, rutinas) y las notas para apuntes y listas.";
   function sysAhora() {
@@ -1631,6 +1633,7 @@
     tecla: function (t) { return rokuLlamar("/tecla", { tecla: t }); },
     volumen: function (accion, veces) { return rokuLlamar("/volumen", { accion: accion, veces: veces || 1 }); },
     app: function (nombre) { return rokuLlamar("/app", { nombre: nombre }); },
+    youtube: function (busqueda) { return rokuLlamar("/youtube", { busqueda: busqueda }); },
     buscar: function (texto) { return rokuLlamar("/buscar", { texto: texto }); },
     escribir: function (texto) { return rokuLlamar("/escribir", { texto: texto }); },
     reproduccion: function (accion) { return rokuLlamar("/reproduccion", { accion: accion }); },
@@ -1661,6 +1664,7 @@
   function rokuHerr(n, a) {
     if (n === "roku_estado") return roku.estado().then(function (j) { if (j && j.ok !== false) rokuEfecto(j, ""); return j; });
     if (n === "roku_tecla") return roku.tecla(a.tecla).then(function (j) { rokuEfecto(j, /^(play|pausa)$/i.test(a.tecla || "") ? String(a.tecla).toUpperCase() : ""); return j; });
+    if (n === "roku_youtube") return roku.youtube(a.busqueda).then(function (j) { rokuEfecto(j, "YOUTUBE"); return j; });
     if (n === "roku_app") return roku.app(a.nombre).then(function (j) { rokuEfecto(j, j && j.app ? String(j.app).toUpperCase().slice(0, 12) : ""); return j; });
     if (n === "roku_volumen") return roku.volumen(a.accion, a.veces).then(function (j) { rokuEfecto(j, txtVol(String(a.accion || ""), j)); return j; });
     if (n === "roku_buscar") return roku.buscar(a.texto).then(function (j) { rokuEfecto(j, "BUSCAR"); return j; });
@@ -1687,6 +1691,7 @@
   var RX_APP = new RegExp(PRE + "(?:abre|abrir|pon|ponme|ponla|prende|lanza|inicia|ve a|enciende)(?: la app de| la aplicacion de| la app| el| la)? ?(youtube|netflix|disney(?: plus| \\+|\\+)?|prime(?: video)?|amazon prime|amazon|hbo(?: max)?|max|spotify)(?: (?:en|de) (?:la )?" + TELE + ")?(?: por favor)?$");
   var RX_OFF = new RegExp(PRE + "(?:apaga|apagar|desactiva|apagame)(?: la| el)? ?" + TELE + "(?: por favor)?$");
   var RX_ON = new RegExp(PRE + "(?:enciende|encender|prende|prender|activa|enciendeme)(?: la| el)? ?" + TELE + "(?: por favor)?$");
+  var RX_YT = new RegExp(PRE + "(?:pon|ponme|ponla|ponlo|reproduce|reproducir|toca|busca|buscame|busca y pon|busca y reproduce)(?: la cancion| el video| el tema| la musica de| musica de| la de| el de)? (.{2,45}?) en youtube(?: en la " + TELE + "| en el roku)?(?: por favor)?$");
   function rokuRapido(s, m) {
     if (pendConf) {
       if (/^(si|claro|dale|ok|okay|vale|confirmo|confirmado|hazlo|adelante|afirmativo|apagala|apagalo|si apagala|si apagalo|si por favor|si apaga)( por favor| gracias)?$/.test(m)) { msg("u", s); var f = pendConf; limpiarConf(); f(); return true; }
@@ -1710,6 +1715,7 @@
     if (RX_PAUSA.test(m)) return ir(roku.reproduccion("pausa"), function () { return "PAUSA"; });
     if (RX_PLAY.test(m)) return ir(roku.reproduccion("play"), function () { return "PLAY"; });
     if (RX_HOME.test(m)) return ir(roku.tecla("home"), function () { return ""; });
+    if ((r = RX_YT.exec(m))) return ir(roku.youtube(r[1]), function () { return "YOUTUBE"; });
     if ((r = RX_APP.exec(m))) return ir(roku.app(r[1]), function (j) { return j && j.app ? String(j.app).toUpperCase().slice(0, 12) : ""; });
     return false;
   }
