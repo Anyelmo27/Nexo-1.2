@@ -27,7 +27,7 @@
   function fijar(c) { if (!E[c]) return false; actual = c; etiqueta.textContent = E[c].n; return true; }
 
   // ---------- Diagnóstico (medidas) ----------
-  var M = { txt: [], aud: [], ttsMs: [], ttsOk: 0, ttsFail: 0, t0: 0, gotTxt: false, gotAud: false, live: { estado: "apagado", setupMs: 0, audioMs: [], cierres: 0, ultimo: "", modo: 0 } }, DL = [];
+  var M = { txt: [], aud: [], ttsMs: [], ttsOk: 0, ttsFail: 0, t0: 0, gotTxt: false, gotAud: false, live: { estado: "apagado", mic: "", setupMs: 0, audioMs: [], cierres: 0, ultimo: "", modo: 0 } }, DL = [];
   function dlog(s) { DL.push(new Date().toLocaleTimeString("es-CO") + " " + String(s).slice(0, 240)); if (DL.length > 14) DL.shift(); }
   window.addEventListener("error", function (e) { dlog("Error JS: " + (e.message || "") + (e.lineno ? " (línea " + e.lineno + ")" : "")); });
   window.addEventListener("unhandledrejection", function (e) { dlog("Promesa rechazada: " + ((e.reason && e.reason.message) || e.reason)); });
@@ -515,6 +515,7 @@
     if (n === "musica") return mediaCtl(a);
     if (n === "pedir_archivo") return pedirArchivo(a);
     if (n.indexOf("roku_") === 0) return rokuHerr(n, a);
+    if (n.indexOf("pc_") === 0) return pcHerr(n, a);
     if (n === "sentir") { if (E[a.emocion]) { emo = a.emocion; return { ok: true }; } return { ok: false, error: "Emoción desconocida" }; }
     return { ok: false, error: "Herramienta desconocida" };
   }
@@ -594,11 +595,41 @@
     { name: "roku_buscar", description: "Busca en la búsqueda global de la TV Roku (películas, series, canales). No busca dentro de una app concreta.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "roku_escribir", description: "Escribe un texto letra por letra en el campo activo de la TV Roku, por ejemplo el buscador de YouTube.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "roku_estado", description: "Consulta la TV Roku: si está encendida, qué app está abierta y qué se reproduce." },
-    { name: "roku_energia", description: "Enciende o apaga la TV Roku. Para apagar, NEXO pide confirmación: pregunta al usuario y solo envía confirmado=true cuando haya dicho que sí.", parameters: P({ accion: { type: "string", enum: ["encender", "apagar"] }, confirmado: { type: "boolean" } }, ["accion"]) }
+    { name: "roku_energia", description: "Enciende o apaga la TV Roku. Para apagar, NEXO pide confirmación: pregunta al usuario y solo envía confirmado=true cuando haya dicho que sí.", parameters: P({ accion: { type: "string", enum: ["encender", "apagar"] }, confirmado: { type: "boolean" } }, ["accion"]) },
+    { name: "pc_estado", description: "Comprueba si la PC esta disponible y que carpetas base estan permitidas (descargas, documentos, escritorio, imagenes).", parameters: P({}) },
+    { name: "pc_listar", description: "Lista los archivos y carpetas de una carpeta de la PC. Carpetas permitidas: descargas, documentos, escritorio, imagenes (o rutas dentro de ellas, por ejemplo 'descargas/nexo-v211').", parameters: P({ carpeta: { type: "string" } }, ["carpeta"]) },
+    { name: "pc_archivo", description: "Trae/descarga un archivo de la PC al dispositivo. Recibe la ruta del archivo (ej. 'descargas/foto.png' o 'descargas/nexo-v211/manifest.json'). Descarga el archivo en el navegador.", parameters: P({ ruta: { type: "string" } }, ["ruta"]) },
+    { name: "pc_volumen", description: "Controla el volumen del sistema de la PC. Usa nivel (0 a 100) para fijar un porcentaje, o accion: 'subir', 'bajar' o 'mute', con veces opcional (pasos de 5%).", parameters: P({ nivel: { type: "number" }, accion: { type: "string", enum: ["subir", "bajar", "mute"] }, veces: { type: "number" } }) },
+    { name: "pc_descargar_carpeta", description: "Descarga una carpeta completa de la PC como archivo .zip. Recibe la ruta/carpeta (ej. 'descargas/nexo-v211' o 'documentos/mis_archivos').", parameters: P({ carpeta: { type: "string" } }, ["carpeta"]) },
+    { name: "pc_subir", description: "Sube archivos (o una carpeta completa) del celular a la PC. Abre el selector de archivos/carpetas y los envía a la carpeta indicada de la PC (por defecto 'descargas').", parameters: P({ carpeta: { type: "string" } }) },
+    { name: "pc_abrir_url", description: "Abre una URL en el navegador predeterminado de la PC.", parameters: P({ url: { type: "string" } }, ["url"]) },
+    { name: "pc_abrir_app", description: "Abre una aplicación en la PC. Permitidas: chrome, edge, firefox, notepad, calc, explorer, paint, cmd, powershell, terminal.", parameters: P({ nombre: { type: "string" } }, ["nombre"]) },
+    { name: "pc_buscar", description: "Busca en un motor (google, youtube, bing, duckduckgo) abriendo el navegador de la PC con los resultados.", parameters: P({ motor: { type: "string", enum: ["google", "youtube", "bing", "duckduckgo"] }, query: { type: "string" } }, ["query"]) },
+    { name: "pc_info", description: "Obtiene informacion del sistema de la PC: hostname, SO, CPU, RAM, discos, IPs y tiempo encendida.", parameters: P({}) },
+    { name: "pc_opencode", description: "Delega una tarea a OpenCode (el agente de programacion de la PC): ejecutar, crear, eliminar, pensar, administrar, sugerir. Recibe un prompt en lenguaje natural y devuelve el resultado.", parameters: P({ prompt: { type: "string" }, cwd: { type: "string", description: "Carpeta de trabajo opcional" }, model: { type: "string", description: "Modelo opcional (proveedor/modelo)" } }, ["prompt"]) }
+  );
+  TOOLS[0].functionDeclarations.push(
+    { name: "pc_portapapeles_leer", description: "Lee el contenido del portapapeles de la PC.", parameters: P({}) },
+    { name: "pc_portapapeles_escribir", description: "Escribe un texto en el portapapeles de la PC.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
+    { name: "pc_screenshot", description: "Toma una captura de pantalla de la PC y la descarga en el celular.", parameters: P({}) },
+    { name: "pc_media", description: "Controla la reproduccion de medios en la PC: play, pause, siguiente, anterior, subir, bajar (volumen multimedia).", parameters: P({ accion: { type: "string", enum: ["play", "pause", "playpause", "siguiente", "anterior", "subir", "bajar"] } }, ["accion"]) },
+    { name: "pc_tts", description: "Hace que la PC hable un texto en voz alta (texto a voz).", parameters: P({ texto: { type: "string" } }, ["texto"]) },
+    { name: "pc_procesos", description: "Lista los procesos de la PC con CPU y memoria (top 25).", parameters: P({}) },
+    { name: "pc_matar", description: "Termina un proceso de la PC por nombre o PID.", parameters: P({ target: { type: "string" } }, ["target"]) },
+    { name: "pc_ventanas", description: "Lista las ventanas abiertas en la PC (con titulo).", parameters: P({}) },
+    { name: "pc_ventana", description: "Acciones sobre una ventana de la PC: enfocar, minimizar o cerrar, por titulo.", parameters: P({ accion: { type: "string", enum: ["enfocar", "minimizar", "cerrar"] }, titulo: { type: "string" } }, ["accion", "titulo"]) },
+    { name: "pc_buscar_archivos", description: "Busca archivos en la PC por nombre o contenido dentro de una carpeta.", parameters: P({ carpeta: { type: "string" }, nombre: { type: "string" }, contenido: { type: "string" } }) },
+    { name: "pc_brillo", description: "Ajusta el brillo del monitor de la PC (0 a 100).", parameters: P({ nivel: { type: "number" } }, ["nivel"]) },
+    { name: "pc_notificaciones", description: "Lee las notificaciones pendientes de la PC (la PC puede enviar mensajes al celular).", parameters: P({}) },
+    { name: "pc_terminal", description: "Ejecuta un comando en la terminal de la PC y devuelve la salida (stdout/stderr).", parameters: P({ comando: { type: "string" }, cwd: { type: "string" } }, ["comando"]) },
+    { name: "pc_wol", description: "Envia un magic packet Wake-on-LAN para encender un equipo de la red por su MAC.", parameters: P({ mac: { type: "string" } }, ["mac"]) },
+    { name: "pc_backup", description: "Copia/sincroniza una carpeta de la PC a otra (backup local).", parameters: P({ origen: { type: "string" }, destino: { type: "string" } }) },
+    { name: "pc_sesiones_opencode", description: "Lista las sesiones de OpenCode guardadas en la PC.", parameters: P({}) }
   );
   SYS.parts[0].text += " TV Roku: la controlas con roku_tecla, roku_app, roku_volumen, roku_buscar, roku_escribir, roku_estado y roku_energia. El volumen va por pasos, no por porcentaje, y no ves la pantalla de la TV, solo la app activa y lo que se reproduce. Para apagar la TV pregunta primero y usa confirmado=true solo cuando el usuario diga que sí. Si una herramienta de la TV dice que no llega al puente, díselo en una frase: inicia el puente en Termux con ./start_bridge.sh. Para poner una canción o video de YouTube en la TV usa roku_youtube (no roku_buscar). Para abrir algo en la TV usa roku_app; para abrir una app en el celular usa abrir_app_movil.";
+  SYS.parts[0].text += " PC: la controlas con pc_estado, pc_listar, pc_archivo, pc_descargar_carpeta, pc_subir, pc_volumen, pc_abrir_url, pc_abrir_app, pc_buscar, pc_info, pc_opencode, pc_portapapeles_leer, pc_portapapeles_escribir, pc_screenshot, pc_media, pc_tts, pc_procesos, pc_matar, pc_ventanas, pc_ventana, pc_buscar_archivos, pc_brillo, pc_notificaciones, pc_terminal, pc_wol, pc_backup y pc_sesiones_opencode. Usa pc_portapapeles para copiar/pegar entre PC y celular; pc_screenshot para ver la pantalla de la PC; pc_media para controlar reproduccion (play/pause/siguiente/anterior); pc_tts para que la PC hable; pc_procesos y pc_matar para gestionar procesos; pc_ventanas y pc_ventana para gestionar ventanas; pc_buscar_archivos para buscar archivos; pc_brillo para el brillo; pc_notificaciones para leer mensajes de la PC; pc_terminal para ejecutar comandos; pc_wol para encender equipos por red; pc_backup para copiar carpetas; pc_sesiones_opencode para listar sesiones. El puente corre en la PC en el puerto 8766; si no responde, dilo en una frase: inicia pc_bridge.js en la PC.";
   SYS.parts[0].text += " Sé preciso con lo que haces: nunca digas que guardaste, recordaste, aprendiste o ejecutaste algo si no llamaste a la herramienta que lo hace (para guardar datos usa recordar); no tienes acceso al brillo ni al volumen del sistema del celular desde esta web, solo al de la app y al de tu voz; y no inventes capacidades.";
-  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1;
+  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1; NECESITA.pc_listar = 1;
   SYS.parts[0].text += " Respondes como asistente de voz cálido y con personalidad: una o dos frases cortas y naturales (tres como máximo), sin listas, markdown ni emojis, porque se leen en voz alta; empieza por la respuesta, sin rodeos. Después de usar herramientas cuenta en una frase lo que hiciste; nunca respondas solo «Listo». Tus partículas forman cualquier cosa: palabras, números y la hora con escribir_con_particulas o mostrar_hora; objetos y animales con forma_con_emoji; dibujos propios con forma_con_trazo; cosas que se mueven (un gato caminando, un pájaro volando, un coche) con figura_animada, o con el parámetro movimiento y la herramienta animar. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz, brillo_app, temporizador (también alarmas a una hora), temporizadores (listar o cancelar), notas (nota_guardar, nota_leer, nota_borrar: listas de compras, ideas, apuntes), contacto (llamar, sms, whatsapp; NEXO deja un botón en pantalla y el usuario confirma con un toque), musica (archivos del celular que el usuario elige: elegir, reproducir, pausar, continuar, siguiente, anterior, detener, volumen) y pedir_archivo para que te muestre una foto, PDF, audio o texto. Para música en internet usa abrir_app_movil con youtube o spotify. Si piden el brillo o el volumen del sistema, o abrir el administrador de archivos, explica que desde una web no es posible y ofrece lo que sí puedes. Usa recordar para datos duraderos del usuario (gustos, nombre, rutinas) y las notas para apuntes y listas.";
   function sysAhora() {
     var t = new Date().toLocaleString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/[  ]/g, " ");
@@ -1481,7 +1512,7 @@
       "Hasta que empieza la voz (modo normal): " + est(M.aud),
       "Voz de Gemini (TTS): ok " + M.ttsOk + " · fallos " + M.ttsFail + " · tiempo " + est(M.ttsMs) + (Date.now() - ttsMalo < 300000 ? " · USANDO VOZ DEL NAVEGADOR por fallo reciente" : ""),
       "Voz elegida: " + selVoz.value + " · motor de micrófono: " + motorMic,
-      "Modo en vivo: " + (liveOn ? "activado" : "apagado") + " · estado: " + M.live.estado + " · conexión: " + (M.live.setupMs ? M.live.setupMs + " ms" : "—") + " · 1er audio tras tu última palabra: " + est(M.live.audioMs) + " · cierres: " + M.live.cierres + (M.live.ultimo ? " · último cierre: " + M.live.ultimo : ""),
+      "Modo en vivo: " + (liveOn ? "activado" : "apagado") + " · estado: " + M.live.estado + " · micrófono: " + (M.live.mic || "—") + " · conexión: " + (M.live.setupMs ? M.live.setupMs + " ms" : "—") + " · 1er audio tras tu última palabra: " + est(M.live.audioMs) + " · cierres: " + M.live.cierres + (M.live.ultimo ? " · último cierre: " + M.live.ultimo : ""),
       "Puente de la TV: " + (rokuVivo ? "ha respondido antes" : "nunca ha respondido") + " · " + ROKU_URL + " · último: " + (M.rokuUlt || "—"),
       "— Últimos avisos —"
     ].concat(DL.length ? DL : ["(ninguno)"]).concat(["", "Navegador: " + navigator.userAgent]);
@@ -1546,15 +1577,47 @@
     liveStop("El modo en vivo no pudo conectar (" + (String(motivo).trim() || "sin detalle") + "). Lo apagué y sigo con el modo normal; el motivo queda en Diagnóstico.", true);
   }
   function b64Int16(pcm) { var u = new Uint8Array(pcm.buffer), s = ""; for (var i = 0; i < u.length; i += 0x2000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x2000)); return btoa(s); }
+  // Captura del modo en vivo: AudioWorklet (hilo de audio, sin tirones) con respaldo a ScriptProcessor.
+  var WK_SRC = "class P extends AudioWorkletProcessor{constructor(o){super();this.r=o.processorOptions.ratio;this.pos=0;this.acc=0;this.cnt=0;this.hp=0;this.pv=0;this.b=new Int16Array(800);this.i=0;this.e=0}" +
+    "process(inp){var x=inp[0]&&inp[0][0];if(!x)return true;for(var k=0;k<x.length;k++){this.acc+=x[k];this.cnt++;this.pos+=1;if(this.pos>=this.r){var v=this.acc/this.cnt;this.acc=0;this.cnt=0;this.pos-=this.r;var y=v-this.pv+.96*this.hp;this.pv=v;this.hp=y;if(y>1)y=1;else if(y<-1)y=-1;this.e+=y*y;this.b[this.i++]=y*32767;" +
+    "if(this.i===800){var o=this.b;this.port.postMessage({pcm:o.buffer,rms:Math.sqrt(this.e/800)},[o.buffer]);this.b=new Int16Array(800);this.i=0;this.e=0}}}return true}}registerProcessor('nexo-pcm',P)";
+  function liveEnviar(L, pcm, rms) {
+    if (live !== L || !L.ok || !L.ws || L.ws.readyState !== 1) return;
+    var ahora = performance.now(), gate = !liveInt && (hablando || ahora < L.gateHasta);
+    if (gate) {
+      // corte de voz inteligente: si hablas fuerte y sostenido mientras NEXO habla, lo interrumpo (el eco ya viene filtrado por el navegador)
+      if (hablando && ls("nexo_barge") !== "0" && rms > .11) { L.fuerte = (L.fuerte || 0) + 1; if (L.fuerte >= 5) { L.fuerte = 0; dlog("Live: corte de voz (rms " + rms.toFixed(2) + ")"); liveCortar(L); L.gateHasta = 0; } } else L.fuerte = 0;
+      return;
+    }
+    L.fuerte = 0; if (rms > .02) pulso = Math.max(pulso, Math.min(1.1, rms * 7));
+    try { L.ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64Int16(pcm), mimeType: "audio/pcm;rate=16000" } } })); } catch (er) {}
+  }
   function liveMic(L) {
-    if (L.pr) return; var a = ac, ratio = a.sampleRate / 16000;
+    if (L.pr || L.wk) return; var a = ac;
+    if (a.audioWorklet && window.AudioWorkletNode && window.Blob && window.URL && URL.createObjectURL) {
+      L.wk = true; var url;
+      try { url = URL.createObjectURL(new Blob([WK_SRC], { type: "application/javascript" })); } catch (er) { L.wk = false; return liveMicSP(L); }
+      a.audioWorklet.addModule(url).then(function () {
+        try { URL.revokeObjectURL(url); } catch (er) {}
+        if (live !== L) return;
+        var nodo = new AudioWorkletNode(a, "nexo-pcm", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: { ratio: a.sampleRate / 16000 } });
+        nodo.port.onmessage = function (ev) { liveEnviar(L, new Int16Array(ev.data.pcm), ev.data.rms); };
+        L.src = a.createMediaStreamSource(L.st); L.pr = nodo; L.mute = a.createGain(); L.mute.gain.value = 0; M.live.mic = "worklet";
+        L.src.connect(anM); L.src.connect(nodo); nodo.connect(L.mute); L.mute.connect(a.destination);
+      }).catch(function (er) { L.wk = false; dlog("Live: worklet no disponible (" + (er && er.message) + "), uso el método clásico"); if (live === L) liveMicSP(L); });
+      return;
+    }
+    liveMicSP(L);
+  }
+  function liveMicSP(L) {
+    if (L.pr) return; var a = ac, ratio = a.sampleRate / 16000; M.live.mic = "script";
     L.src = a.createMediaStreamSource(L.st); L.pr = a.createScriptProcessor(2048, 1, 1); L.mute = a.createGain(); L.mute.gain.value = 0;
+    var hp = 0, pv = 0;
     L.pr.onaudioprocess = function (e) {
       if (live !== L || !L.ok || !L.ws || L.ws.readyState !== 1) return;
-      var inp = e.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio), pcm = new Int16Array(n), gate = !liveInt && (hablando || performance.now() < L.gateHasta), i, j, s, rms = 0;
-      if (!gate) for (i = 0; i < n; i++) { var a0 = Math.floor(i * ratio), b0 = Math.min(inp.length, Math.floor((i + 1) * ratio)); s = 0; for (j = a0; j < b0; j++) s += inp[j]; s /= Math.max(1, b0 - a0); rms += s * s; pcm[i] = lim(s, -1, 1) * 32767; }
-      if (!gate) { rms = Math.sqrt(rms / n); if (rms > .02) pulso = Math.max(pulso, Math.min(1.1, rms * 7)); }
-      try { L.ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64Int16(pcm), mimeType: "audio/pcm;rate=16000" } } })); } catch (er) {}
+      var inp = e.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio), pcm = new Int16Array(n), i, j, s, y, rms = 0;
+      for (i = 0; i < n; i++) { var a0 = Math.floor(i * ratio), b0 = Math.min(inp.length, Math.floor((i + 1) * ratio)); s = 0; for (j = a0; j < b0; j++) s += inp[j]; s /= Math.max(1, b0 - a0); y = s - pv + .96 * hp; pv = s; hp = y; y = lim(y, -1, 1); rms += y * y; pcm[i] = y * 32767; }
+      liveEnviar(L, pcm, Math.sqrt(rms / Math.max(1, n)));
     };
     L.src.connect(anM); L.src.connect(L.pr); L.pr.connect(L.mute); L.mute.connect(a.destination);
   }
@@ -1604,7 +1667,7 @@
   function liveStop(texto, err) {
     var L = live; if (!L) return; live = null; clearTimeout(L.tmo); L.cerrado = true; M.live.estado = "apagado";
     try { L.ws.onclose = null; L.ws.onmessage = null; L.ws.close(); } catch (er) {}
-    liveCortar(L); try { L.pr.onaudioprocess = null; L.pr.disconnect(); L.src.disconnect(); L.mute.disconnect(); } catch (er2) {}
+    liveCortar(L); try { if (L.pr) { L.pr.onaudioprocess = null; if (L.pr.port) L.pr.port.onmessage = null; L.pr.disconnect(); } } catch (er2) {} try { if (L.src) L.src.disconnect(); if (L.mute) L.mute.disconnect(); } catch (er3) {}
     if (L.st) L.st.getTracks().forEach(function (x) { x.stop(); });
     hablando = false; marcarLive(); fijar(err ? "error" : "reposo"); if (texto) msg(err ? "e" : "n", texto);
     if (err) tm.push(setTimeout(function () { if (!live) fijar("reposo"); }, 4000));
@@ -1679,6 +1742,267 @@
     }
     return { ok: false, error: "Herramienta desconocida" };
   }
+  // ================= v2.1: PC (puente directo) =================
+  var PC_URL = ls("nexo_pc_url") || "http://192.168.40.25:8766", pcVivo = ls("nexo_pc_ok") === "1";
+  var MSG_PC = "No llego a la PC. Inicia pc_bridge.js en la PC (node pc_bridge.js) y verifica que el firewall permita el puerto 8766.";
+  function pcLlamar(ruta, cuerpo) {
+    var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+    var ctl = new AbortController(), tt = setTimeout(function () { ctl.abort(); }, 15000), op = { signal: ctl.signal, headers: { "x-token": tk } };
+    if (cuerpo) { op.method = "POST"; op.headers["Content-Type"] = "application/json"; op.body = JSON.stringify(cuerpo); }
+    var url = PC_URL + ruta + (cuerpo ? "" : ("?token=" + encodeURIComponent(tk)));
+    return fetch(url, op).then(function (r) { clearTimeout(tt); return r.json(); }).then(function (j) {
+      if (j && typeof j === "object") { pcVivo = true; ls("nexo_pc_ok", "1"); M.pcUlt = ruta + " → " + (j.ok === false ? j.error : "ok"); if (j.ok === false) dlog("PC " + ruta + ": " + j.error); return j; }
+      throw new Error("respuesta no válida");
+    }).catch(function (e) { clearTimeout(tt); M.pcUlt = ruta + " → sin puente (" + (e && e.message) + ")"; dlog("PC: no llego al puente (" + (e && e.message) + ")"); return { ok: false, puente: false, error: MSG_PC }; });
+  }
+  var pc = {
+    estado: function () { return pcLlamar("/health"); },
+    listar: function (carpeta) { return pcLlamar("/listar?carpeta=" + encodeURIComponent(carpeta)); },
+    archivoUrl: function (ruta) { return PC_URL + "/archivo?ruta=" + encodeURIComponent(ruta) + "&token=" + encodeURIComponent(ls("nexo_pc_token") || "nexo-pc-2026"); },
+    descargar: function (ruta) {
+      return fetch(pc.archivoUrl(ruta)).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.blob();
+      }).then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = String(ruta).split("/").pop().split("\\").pop() || "archivo";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+        return { ok: true, hecho: "Archivo descargado: " + a.download };
+      });
+    },
+    descargarCarpeta: function (carpeta) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      var url = PC_URL + "/descargar-carpeta?carpeta=" + encodeURIComponent(carpeta) + "&token=" + encodeURIComponent(tk);
+      return fetch(url, { headers: { "x-token": tk } }).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.blob();
+      }).then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = (String(carpeta).split("/").pop().split("\\").pop() || "carpeta") + ".zip";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+        return { ok: true, hecho: "Carpeta descargada como " + a.download };
+      });
+    },
+    opencode: function (prompt, cwd, model) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      var qs = "prompt=" + encodeURIComponent(prompt) + "&token=" + encodeURIComponent(tk);
+      if (cwd) qs += "&cwd=" + encodeURIComponent(cwd);
+      if (model) qs += "&model=" + encodeURIComponent(model);
+      return fetch(PC_URL + "/opencode?" + qs, { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    info: function () {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/info?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    clipboardLeer: function () {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/portapapeles?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    clipboardEscribir: function (texto) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/portapapeles?token=" + encodeURIComponent(tk), { method: "POST", headers: { "x-token": tk, "Content-Type": "application/json" }, body: JSON.stringify({ texto: texto }) }).then(function (r) { return r.json(); });
+    },
+    screenshot: function () {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/screenshot?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.blob();
+      }).then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "screenshot_pc.png";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+        return { ok: true, hecho: "Captura de pantalla descargada." };
+      });
+    },
+    mediaPC: function (accion) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/media?accion=" + encodeURIComponent(accion) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    ttsPC: function (texto) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/tts?texto=" + encodeURIComponent(texto) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    procesos: function () {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/procesos?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    matar: function (target) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/matar?nombre=" + encodeURIComponent(target) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    ventanas: function () {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/ventanas?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    ventana: function (accion, titulo) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/ventana?accion=" + encodeURIComponent(accion) + "&titulo=" + encodeURIComponent(titulo) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    buscarArchivos: function (carpeta, nombre, contenido) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      var qs = "carpeta=" + encodeURIComponent(carpeta || "descargas") + "&token=" + encodeURIComponent(tk);
+      if (nombre) qs += "&nombre=" + encodeURIComponent(nombre);
+      if (contenido) qs += "&contenido=" + encodeURIComponent(contenido);
+      return fetch(PC_URL + "/buscar-archivos?" + qs, { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    brillo: function (nivel) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/brillo?nivel=" + encodeURIComponent(nivel) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    notificacionesLeer: function () {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/notificaciones?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    terminal: function (comando, cwd) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      var qs = "comando=" + encodeURIComponent(comando) + "&token=" + encodeURIComponent(tk);
+      if (cwd) qs += "&cwd=" + encodeURIComponent(cwd);
+      return fetch(PC_URL + "/terminal?" + qs, { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    wol: function (mac) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/wol?mac=" + encodeURIComponent(mac) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    backup: function (origen, destino) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      var qs = "origen=" + encodeURIComponent(origen || "descargas") + "&destino=" + encodeURIComponent(destino || "documentos") + "&token=" + encodeURIComponent(tk);
+      return fetch(PC_URL + "/backup?" + qs, { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    sesionesOC: function () {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/opencode-sesiones?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    abrirUrl: function (url) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/abrir-url?url=" + encodeURIComponent(url) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    abrirApp: function (nombre) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/abrir-app?nombre=" + encodeURIComponent(nombre) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    buscar: function (motor, query) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/buscar?motor=" + encodeURIComponent(motor || "google") + "&query=" + encodeURIComponent(query) + "&token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); });
+    },
+    subir: function (carpeta) {
+      carpeta = carpeta || "descargas";
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return new Promise(function (resolve) {
+        var input = document.createElement("input");
+        input.type = "file"; input.multiple = true; input.webkitdirectory = true;
+        input.style.display = "none";
+        document.body.appendChild(input);
+        input.onchange = function () {
+          var files = Array.from(input.files || []);
+          input.remove();
+          if (!files.length) { resolve({ ok: false, error: "No seleccionaste archivos." }); return; }
+          var results = [], done = 0;
+          files.forEach(function (f) {
+            var rel = f.webkitRelativePath || f.name;
+            var url = PC_URL + "/subir?carpeta=" + encodeURIComponent(carpeta) + "&ruta=" + encodeURIComponent(rel) + "&token=" + encodeURIComponent(tk);
+            fetch(url, { method: "POST", headers: { "x-token": tk, "Content-Type": "application/octet-stream" }, body: f })
+              .then(function (r) { return r.json(); })
+              .then(function (j) { results.push({ archivo: rel, ok: !!j.ok, error: j && j.error, tamano: j && j.tamano }); })
+              .catch(function (e) { results.push({ archivo: rel, ok: false, error: (e && e.message) }); })
+              .finally(function () { done++; if (done === files.length) {
+                var okAll = results.every(function (x) { return x.ok; });
+                resolve({ ok: okAll, total: files.length, okCount: results.filter(function (x) { return x.ok; }).length, archivos: results, hecho: (okAll ? "Subidos " + files.length + " archivo(s) a " + carpeta + "." : "Subidos " + results.filter(function (x) { return x.ok; }).length + " de " + files.length + " a " + carpeta + ".") });
+              } });
+          });
+        };
+        input.click();
+      });
+    }
+  };
+  function pcHerr(n, a) {
+    if (n === "pc_estado") return pc.estado().then(function (j) { return j && j.ok ? { ok: true, hecho: "PC disponible. Carpetas: " + (j.bases || []).join(", ") } : { ok: false, error: (j && j.error) || MSG_PC }; });
+    if (n === "pc_listar") return pc.listar(a.carpeta).then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      var lines = (j.items || []).map(function (it) { return (it.tipo === "carpeta" ? "📁 " : "📄 ") + it.nombre + (it.tamano != null ? " (" + it.tamano + " B)" : ""); });
+      return { ok: true, hecho: "Contenido de " + (a.carpeta || "") + ":\n" + lines.join("\n"), items: j.items };
+    });
+    if (n === "pc_archivo") return pc.descargar(a.ruta).then(function (j) { return j; }).catch(function (e) { return { ok: false, error: "Error descargando: " + (e && e.message) }; });
+    if (n === "pc_volumen") {
+      var qs = "";
+      if (a.nivel !== undefined && a.nivel !== null) qs += "nivel=" + encodeURIComponent(a.nivel) + "&";
+      if (a.accion) qs += "accion=" + encodeURIComponent(a.accion) + "&";
+      if (a.veces) qs += "veces=" + encodeURIComponent(a.veces) + "&";
+      qs += "token=" + encodeURIComponent(ls("nexo_pc_token") || "nexo-pc-2026");
+      return fetch(PC_URL + "/volumen?" + qs, { headers: { "x-token": ls("nexo_pc_token") || "nexo-pc-2026" } }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+        return { ok: true, hecho: "Volumen de la PC al " + j.volumen + "%" + (j.mute ? " (silenciado)" : "") };
+      }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    }
+    if (n === "pc_descargar_carpeta") return pc.descargarCarpeta(a.carpeta).catch(function (e) { return { ok: false, error: "Error: " + (e && e.message) }; });
+    if (n === "pc_subir") return pc.subir(a.carpeta).catch(function (e) { return { ok: false, error: "Error: " + (e && e.message) }; });
+    if (n === "pc_abrir_url") return pc.abrirUrl(a.url).then(function (j) { return j && j.ok ? { ok: true, hecho: "Abriendo " + a.url } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_abrir_app") return pc.abrirApp(a.nombre).then(function (j) { return j && j.ok ? { ok: true, hecho: "Abriendo " + a.nombre } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_buscar") return pc.buscar(a.motor || "google", a.query).then(function (j) { return j && j.ok ? { ok: true, hecho: "Buscando '" + a.query + "' en " + (a.motor || "google") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_info") return pc.info().then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      var d = j;
+      var ram = "RAM " + d.ram.usado_mb + "/" + d.ram.total_mb + " MB";
+      var cpu = d.cpu.modelo + " (" + d.cpu.nucleos + " nucleos)";
+      var discos = (d.discos || []).map(function (x) { return x.unidad + " " + x.libre_gb + " GB libres de " + x.total_gb + " GB"; }).join(", ");
+      var ips = (d.ips || []).map(function (x) { return x.ip; }).join(", ");
+      var up = Math.round(d.uptime_segundos / 3600 * 10) / 10;
+      return { ok: true, hecho: d.hostname + " - " + d.plataforma + " " + d.release + ". CPU: " + cpu + ". " + ram + ". Discos: " + (discos || "n/a") + ". IP: " + (ips || "n/a") + ". Encendida " + up + " h." };
+    }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_opencode") {
+      return pc.opencode(a.prompt, a.cwd, a.model).then(function (j) {
+        if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC, raw: (j && j.raw) };
+        var out = (j.output || "").trim();
+        if (out.length > 1500) out = out.slice(0, 1500) + "...";
+        return { ok: true, hecho: out || "OpenCode termino sin salida." };
+      }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    }
+    if (n === "pc_portapapeles_leer") return pc.clipboardLeer().then(function (j) { return j && j.ok ? { ok: true, hecho: "Portapapeles: " + (j.texto || "(vacio)") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_portapapeles_escribir") return pc.clipboardEscribir(a.texto).then(function (j) { return j && j.ok ? { ok: true, hecho: "Portapapeles actualizado." } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_screenshot") return pc.screenshot().catch(function (e) { return { ok: false, error: "Error: " + (e && e.message) }; });
+    if (n === "pc_media") return pc.mediaPC(a.accion).then(function (j) { return j && j.ok ? { ok: true, hecho: "Media: " + a.accion } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_tts") return pc.ttsPC(a.texto).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "La PC hablo.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_procesos") return pc.procesos().then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      var lines = (j.procesos || []).slice(0, 15).map(function (p) { return p.Name + " (PID " + p.Id + ") CPU " + p.CPU + " Mem " + p.MemMB + "MB"; });
+      return { ok: true, hecho: "Top procesos:\n" + lines.join("\n") };
+    }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_matar") return pc.matar(a.target).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "Proceso terminado.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_ventanas") return pc.ventanas().then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      var lines = (j.ventanas || []).map(function (w) { return w.Name + " - " + w.MainWindowTitle; });
+      return { ok: true, hecho: (lines.length ? lines.join("\n") : "No hay ventanas.") };
+    }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_ventana") return pc.ventana(a.accion, a.titulo).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || a.accion + " ventana.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_buscar_archivos") return pc.buscarArchivos(a.carpeta || "descargas", a.nombre, a.contenido).then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      var items = j.resultados || [];
+      var lines = items.slice(0, 30).map(function (x) { return (x.FullName || x.Path || JSON.stringify(x)) + (x.Length != null ? " (" + x.Length + " B)" : ""); });
+      return { ok: true, hecho: (lines.length ? lines.join("\n") : "Sin resultados.") };
+    }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_brillo") return pc.brillo(a.nivel).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "Brillo ajustado.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_notificaciones") return pc.notificacionesLeer().then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      var ns = j.notificaciones || [];
+      if (!ns.length) return { ok: true, hecho: "Sin notificaciones pendientes." };
+      return { ok: true, hecho: ns.map(function (x) { return x.texto; }).join("\n") };
+    }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_terminal") return pc.terminal(a.comando, a.cwd).then(function (j) {
+      if (!j) return { ok: false, error: MSG_PC };
+      var out = (j.stdout || "").trim();
+      if (j.stderr) out += (out ? "\n" : "") + "STDERR: " + j.stderr.trim();
+      if (out.length > 1500) out = out.slice(0, 1500) + "...";
+      return { ok: j.ok !== false, hecho: out || ("exit " + j.code) };
+    }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_wol") return pc.wol(a.mac).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "Magic packet enviado.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_backup") return pc.backup(a.origen || "descargas", a.destino || "documentos").then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "Backup completado.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_sesiones_opencode") return pc.sesionesOC().then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      return { ok: true, hecho: (j.sesiones ? JSON.stringify(j.sesiones).slice(0, 1500) : (j.raw || "sin datos")) };
+    }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    return { ok: false, error: "Herramienta desconocida" };
+  }
   // ---- comandos instantáneos, sin IA
   var NUMR = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
   var TELE = "(?:tele|tv|television|televisor|roku)", PRE = "^(?:oye |nexo |por favor )*";
@@ -1721,8 +2045,10 @@
   }
   // Botón del menú: probar la conexión con la TV
   $("hoja").addEventListener("click", function (ev) {
-    var b = ev.target.closest ? ev.target.closest("button[data-a=roku]") : null; if (!b) return;
-    msg("n", "Probando la conexión con la TV…"); roku.estado().then(function (j) { if (j && j.ok !== false) { rokuEfecto(j, "TV OK"); mostrarResultado({ ok: true, hecho: j.hecho }); } else rokuMostrar(j); });
+    var b = ev.target.closest ? ev.target.closest("button[data-a]") : null; if (!b) return;
+    var a = b.getAttribute("data-a");
+    if (a === "roku") { msg("n", "Probando la conexión con la TV…"); roku.estado().then(function (j) { if (j && j.ok !== false) { rokuEfecto(j, "TV OK"); mostrarResultado({ ok: true, hecho: j.hecho }); } else rokuMostrar(j); }); return; }
+    if (a === "pc") { msg("n", "Probando la conexión con la PC…"); pc.estado().then(function (j) { if (j && j.ok) mostrarResultado({ ok: true, hecho: "PC disponible. Carpetas: " + (j.bases || []).join(", ") }); else mostrarResultado({ ok: false, error: (j && j.error) || MSG_PC }); }); return; }
   });
 
 })();
