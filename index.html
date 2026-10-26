@@ -6,18 +6,24 @@
   <title>NEXO AI</title>
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0a0604">
+  <meta name="theme-color" content="#03040a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
 </head>
-<body>
+<body class="s-idle">
   <canvas id="lienzo" aria-hidden="true"></canvas>
+  <canvas id="neuro" aria-hidden="true"></canvas>
+  <img id="holoimg" alt="">
   <div id="velo" aria-hidden="true"></div>
   <canvas id="viz" aria-hidden="true"></canvas>
   <video id="cam" playsinline muted aria-hidden="true"></video>
   <video id="med" playsinline preload="auto"></video>
+  <div id="nexo-head" aria-label="NEXO AI">
+    <div class="brand-mark"><span class="brand-orb"></span><span class="brand-name">NEXO <b>AI</b><small>INTELIGENCIA LOCAL</small></span></div>
+    <div class="head-status"><span class="status-led"></span><span id="status-label">SISTEMA EN ESPERA</span><span class="status-sep">/</span><span class="priv">PRIVADO</span></div>
+  </div>
   <div id="mini">
     <button type="button" id="bmas" aria-label="Más opciones" title="Más opciones"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
     <button type="button" id="bkb" aria-label="Escribir con el teclado" title="Teclado"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg></button>
@@ -46,6 +52,7 @@
       <button type="button" data-a="roku">📺  TV Roku: probar conexión</button>
     <button type="button" data-a="pc">💻  PC: probar conexión</button>
       <button type="button" data-a="diag">📊  Diagnóstico y calidad</button>
+      <button type="button" data-a="estilo">✨  Estilo: holograma neuronal / partículas 3D</button>
       <button type="button" data-a="piramide">🔺  Modo pirámide (holograma 3D)</button>
       <button type="button" data-a="controles">⚙️  Controles</button>
       <button type="button" data-a="cerrar">Cerrar</button>
@@ -71,9 +78,10 @@
           <button type="button" id="inv">Invertir orientación</button>
           <label>Intensidad <input type="range" id="inten" min="0.6" max="4" step="0.1" value="2.4"></label>
           <label>Partículas <input type="range" id="cant" min="2000" max="16000" step="500" value="10000"></label>
-          <label>Tamaño de vista <input type="range" id="tam" min="0.15" max="0.34" step="0.01" value="0.3"></label>
+          <label>Tamaño de vista <input type="range" id="tam" min="0.15" max="0.5" step="0.01" value="0.36"></label>
           <label>Distancia al centro <input type="range" id="dist" min="0" max="0.12" step="0.005" value="0.04"></label>
           <label><input type="checkbox" id="limp" checked> Pantalla limpia (sin barra de chat)</label>
+          <label><input type="checkbox" id="sinap"> Mostrar conexiones (sinapsis) del holograma neuronal</label>
           <label><input type="checkbox" id="vozon" checked> Respuesta en voz</label>
           <label><input type="checkbox" id="liveon"> Modo en vivo (Gemini Live, beta)</label>
           <label><input type="checkbox" id="liveint"> En vivo: poder interrumpirlo hablando (usa audífonos)</label>

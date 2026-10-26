@@ -12,19 +12,24 @@
   // ---------- Estados (paleta cálida tipo Jarvis) ----------
   function S(n, amp, rad, spd, br, wave, c) { return { n: n, amp: amp, rad: rad, spd: spd, br: br, wave: wave, c: c }; }
   var E = {
-    reposo:     S("Reposo",     .6,  1,    .8,  .8,  .15, [1,.42,.06, 1,.72,.22, .85,.2,.02]),
-    escucha:    S("Escucha",    .8,  1.06, .9,  1,   .1,  [1,.55,.1, 1,.85,.35, .95,.35,.05]),
-    procesando: S("Procesando", 1.2, .92,  2.2, 1,   .5,  [1,.35,.05, 1,.9,.5, 1,.6,.1]),
-    respuesta:  S("Respuesta",  .85, 1,    1.2, 1,   1,   [1,.5,.08, 1,.85,.4, .95,.3,.05]),
-    feliz:      S("Feliz",      1,   1.04, 1.4, 1,   .7,  [1,.6,.1, 1,.92,.45, 1,.45,.05]),
-    preocupado: S("Preocupado", .8,  .95,  .7,  .85, .2,  [.85,.3,.1, 1,.55,.3, .6,.12,.12]),
-    error:      S("Error",      1.3, .98,  .5,  .95, 0,   [.95,.1,.2, 1,.4,.35, .6,.05,.25])
+    reposo:     S("Reposo",     .6,  1,    .8,  .8,  .15, [.42,.27,.9, .66,.47,1, .86,.78,1]),
+    escucha:    S("Escucha",    .8,  1.06, .9,  1,   .1,  [.4,.35,.95, .62,.58,1, .85,.88,1]),
+    procesando: S("Procesando", 1.2, .92,  2.2, 1,   .5,  [.5,.22,1, .74,.42,1, .93,.78,1]),
+    respuesta:  S("Respuesta",  .85, 1,    1.2, 1,   1,   [.42,.3,.95, .72,.55,1, .96,.9,1]),
+    feliz:      S("Feliz",      1,   1.04, 1.4, 1,   .7,  [.55,.3,1, .82,.52,1, 1,.88,1]),
+    preocupado: S("Preocupado", .8,  .95,  .7,  .85, .2,  [.4,.25,.8, .58,.4,.88, .78,.7,1]),
+    error:      S("Error",      1.3, .98,  .5,  .95, 0,   [.95,.1,.3, 1,.4,.5, .7,.1,.4])
   };
   var K = ["amp", "rad", "spd", "br", "wave"];
   var actual = "reposo", v = { c: E.reposo.c.slice() }, tinte = null, emo = null;
   K.forEach(function (k) { v[k] = E.reposo[k]; });
   var etiqueta = $("estado");
-  function fijar(c) { if (!E[c]) return false; actual = c; etiqueta.textContent = E[c].n; return true; }
+  var ESTL = { reposo: ["s-idle", "SISTEMA EN ESPERA"], escucha: ["s-listen", "ESCUCHANDO"], procesando: ["s-think", "PROCESANDO"], respuesta: ["s-speak", "RESPONDIENDO"], feliz: ["s-speak", "RESPONDIENDO"], preocupado: ["s-think", "ATENTO"], error: ["s-error", "ERROR"] }, ESTC = ["s-idle", "s-listen", "s-think", "s-speak", "s-error"];
+  function fijar(c) {
+    if (!E[c]) return false; actual = c; etiqueta.textContent = E[c].n;
+    try { var u = ESTL[c] || ESTL.reposo, b = document.body, h = document.getElementById("status-label"); ESTC.forEach(function (k) { b.classList.toggle(k, k === u[0]); }); if (h) h.textContent = (typeof live !== "undefined" && live) ? "MODO EN VIVO" : u[1]; } catch (er) {}
+    return true;
+  }
 
   // ---------- Diagnóstico (medidas) ----------
   var M = { txt: [], aud: [], ttsMs: [], ttsOk: 0, ttsFail: 0, t0: 0, gotTxt: false, gotAud: false, live: { estado: "apagado", mic: "", setupMs: 0, audioMs: [], cierres: 0, ultimo: "", modo: 0 } }, DL = [];
@@ -136,7 +141,7 @@
   var gl = cv.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false, powerPreference: "high-performance" });
   function compilar(tipo, s) { var h = gl.createShader(tipo); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(h)); return null; } return h; }
   function subir() {
-    var d = new Float32Array(MAX * 8);
+    formaN++; var d = new Float32Array(MAX * 8);
     for (var i = 0; i < MAX; i++) { d[i * 8] = rnd[i * 2]; d[i * 8 + 1] = rnd[i * 2 + 1]; d.set(src.subarray(i * 3, i * 3 + 3), i * 8 + 2); d.set(tgt.subarray(i * 3, i * 3 + 3), i * 8 + 5); }
     gl.bindBuffer(gl.ARRAY_BUFFER, buf); cpu = d; gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
   }
@@ -392,12 +397,234 @@
     return { ok: true, hecho: "La figura «" + (a.nombre || "personalizada") + "» ya está en movimiento." };
   }
 
+  // ---------- Holograma neuronal (Canvas 2D): red de partículas, neuronas y sinapsis ----------
+  // Lee las mismas formas, colores, movimientos y estados que el holograma 3D, y los dibuja como la red morada original.
+  var cn = $("neuro"), g2 = cn ? cn.getContext("2d") : null, estiloN = !!g2 && ls("nexo_estilo") !== "3d", formaN = 0, nVis = null;
+  var NMAX = 3200, NNMAX = 900, nFN = 700, nstep = 0, nBase = 0, nlisto = false;
+  var nX = new Float32Array(NMAX), nY = new Float32Array(NMAX), nVX = new Float32Array(NMAX), nVY = new Float32Array(NMAX), nHX = new Float32Array(NMAX), nHY = new Float32Array(NMAX), nZ = new Float32Array(NMAX);
+  var nSZ = new Float32Array(NMAX), nMS = new Float32Array(NMAX), nPH = new Float32Array(NMAX), nFQ = new Float32Array(NMAX), nAct = new Float32Array(NNMAX), nA = new Uint16Array(NMAX), nB = new Uint16Array(NMAX), nFX = new Float32Array(nFN), nFY = new Float32Array(nFN);
+  var nN = 0, nNN = 0, nW = 200, nH = 400, nd = 1, nrgb = "168,121,255", nlt = "228,215,255", nt = 0, nrip = [], nev = [], npu = [], nLA = [], nLB = [], nLL = [], nADJ = [];
+  var nburst = 0, nmx = 1e9, nmy = 1e9, nfa = 0, nfaceT = 0, nfaceUntil = 0, nfaceNext = 14, nforma = -1, ncx = 0, ncy = 0, nR = 100, nRX = 0, nRY = 0, nLvl = 0, nnext = 0, nmicBeat = 0, nUlt = "", nSpec = new Float32Array(48), nFz = new Uint8Array(128);
+  var NT = { idle: [70, 0, .02, 1, 0, 1.5], listen: [90, 0, .05, 2.5, 60, 4], think: [140, 90, .03, 5, 0, 14], speak: [110, 20, .09, 5, 40, 7] }, NC = [70, 0, .02, 1, 0, 1.5];
+  var NREF = 170, nScr = 1, cnH = null, gH = null, nLinks = ls("nexo_links") === "1";
+  function nDisc(P, cx, cy, r, n) { for (var i = 0; i < n; i++) { var a = R() * 6.2832, d = Math.sqrt(R()) * r; P.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d]); } }
+  function nRing(P, cx, cy, r, n, ry) { for (var i = 0; i < n; i++) { var a = i / n * 6.2832; P.push([cx + Math.cos(a) * r, cy + Math.sin(a) * (ry || r)]); } }
+  function nArc(P, cx, cy, r, a0, a1, n) { for (var i = 0; i < n; i++) { var a = (a0 + (a1 - a0) * i / (n - 1)) * Math.PI / 180; P.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } }
+  function nLine(P, x0, y0, x1, y1, n) { for (var i = 0; i < n; i++) { var u = i / (n - 1); P.push([x0 + (x1 - x0) * u, y0 + (y1 - y0) * u]); } }
+  function nHeart(P, cx, cy, s, n) { for (var i = 0; i < n; i++) { var q = i / n * 6.2832; P.push([cx + 16 * Math.pow(Math.sin(q), 3) / 17 * s, cy + (-(13 * Math.cos(q) - 5 * Math.cos(2 * q) - 2 * Math.cos(3 * q) - Math.cos(4 * q)) / 17 - .155) * s]); } }
+  function nCara(e) {
+    var P = [], L = -.30, Rr = .30, y = -.16;
+    switch (e) {
+      case "alegre": nArc(P, L, y + .05, .12, 200, 340, 70); nArc(P, Rr, y + .05, .12, 200, 340, 70); nArc(P, 0, .10, .38, 22, 158, 140); break;
+      case "triste": nDisc(P, L, y, .07, 50); nDisc(P, Rr, y, .07, 50); nLine(P, -.46, -.27, -.18, -.38, 45); nLine(P, .46, -.27, .18, -.38, 45); nArc(P, 0, .66, .34, 208, 332, 90); break;
+      case "enojado": nDisc(P, L, y + .02, .065, 45); nDisc(P, Rr, y + .02, .065, 45); nLine(P, -.48, -.42, -.12, -.26, 55); nLine(P, .48, -.42, .12, -.26, 55); nArc(P, 0, .80, .48, 248, 292, 80); break;
+      case "sorprendido": nRing(P, L, y, .13, 70); nRing(P, Rr, y, .13, 70); nDisc(P, L, y, .04, 15); nDisc(P, Rr, y, .04, 15); nRing(P, 0, .38, .11, 80, .15); break;
+      case "pensativo": nDisc(P, L + .05, y, .07, 50); nDisc(P, Rr + .05, y, .07, 50); nLine(P, -.46, -.38, -.14, -.44, 45); nLine(P, .14, -.31, .46, -.31, 45); nLine(P, -.2, .38, .22, .31, 70); break;
+      case "curioso": nRing(P, L, y, .09, 55); nRing(P, Rr, y, .13, 70); nDisc(P, L, y, .03, 10); nDisc(P, Rr, y, .04, 12); nArc(P, Rr, -.46, .15, 220, 320, 35); nArc(P, .06, .28, .17, 35, 145, 70); break;
+      case "amor": nHeart(P, L, y, .17, 75); nHeart(P, Rr, y, .17, 75); nArc(P, 0, .12, .36, 25, 155, 120); break;
+      default: nDisc(P, L, y, .07, 50); nDisc(P, Rr, y, .07, 50); nLine(P, -.22, .32, .22, .32, 80);
+    }
+    return P;
+  }
+  function neuroCara(e, seg) {
+    var P = nCara(e), k = P.length, r0 = NREF * .85;
+    for (var i = 0; i < nFN; i++) { var p = P[i % k], j = i >= k ? .024 : 0; nFX[i] = (p[0] + (R() - .5) * j) * r0; nFY[i] = (p[1] + (R() - .5) * j) * r0; }
+    nfaceT = 1; nfaceUntil = nt + (seg || 4.5);
+  }
+  function neuroTam() {
+    var q = Q(); nd = Math.min(window.devicePixelRatio || 1, q.dpr, 1.5);
+    nW = cn.clientWidth || window.innerWidth; nH = cn.clientHeight || window.innerHeight;
+    cn.width = Math.round(nW * nd); cn.height = Math.round(nH * nd); g2.setTransform(nd, 0, 0, nd, 0, 0);
+    nBase = Math.max(1100, Math.min(NMAX, Math.round(q.n / 3.6)));
+    nNN = Math.min(NNMAX, Math.round(nBase * .27)); nN = Math.min(NMAX, Math.max(nBase, nNN + nFN + 100));
+    var sc = Math.pow(Math.max(1, nW / 480), .7);
+    for (var i = 0; i < nN; i++) {
+      nSZ[i] = (R() < .15 ? 2.2 : R() < .5 ? 1.5 : 1) * sc; nMS[i] = .6 + R(); nPH[i] = R() * 6.283; nFQ[i] = 1.5 + R() * 4;
+      if (!nlisto) { nX[i] = (R() - .5) * 30; nY[i] = (R() - .5) * 30; nVX[i] = nVY[i] = 0; }
+    }
+    nlisto = true; nforma = -1; nAct.fill(0); nev = []; npu = []; nLA = []; nLB = []; nLL = []; nADJ = [];
+  }
+  // sinapsis: cada neurona se conecta con sus 2 vecinas más cercanas y 1 un poco más lejana
+  function neuroSinapsis() {
+    nLA = []; nLB = []; nLL = []; nADJ = []; for (var z = 0; z < nNN; z++) nADJ.push([]); nev = []; npu = []; nAct.fill(0);
+    var seen = {}, i, j, k, d, dx, dy, q, l, key;
+    for (i = 0; i < nNN; i++) {
+      d = [];
+      for (j = 0; j < nNN; j++) if (j !== i) {
+        dx = nHX[i] - nHX[j]; dy = nHY[i] - nHY[j]; q = dx * dx + dy * dy;
+        if (d.length < 7 || q < d[6][0]) { k = Math.min(d.length, 6); if (d.length < 7) d.push(null); while (k > 0 && d[k - 1][0] > q) { d[k] = d[k - 1]; k--; } d[k] = [q, j]; }
+      }
+      var pick3 = [0, 1, 2 + ((R() * 5) | 0)];
+      for (var u = 0; u < 3; u++) {
+        var e = d[pick3[u]]; if (!e) continue; j = e[1]; key = i < j ? i * 4096 + j : j * 4096 + i;
+        if (!seen[key]) { seen[key] = 1; l = nLA.length; nLA.push(i); nLB.push(j); nLL.push(Math.sqrt(e[0])); nADJ[i].push(l); nADJ[j].push(l); }
+      }
+    }
+  }
+  function neuroDisparo(i, e) {
+    nAct[i] = 1; if (e < .25 || !nLinks || !nADJ[i]) return;
+    for (var k = 0; k < nADJ[i].length; k++) {
+      var l = nADJ[i][k], j = nLA[l] === i ? nLB[l] : nLA[l];
+      if (nAct[j] < .3 && R() < .6 && nev.length < 900) { var dl = .12 + R() * .1; nev.push([nt + dl, j, e * .82]); npu.push([i, j, nt, dl]); }
+    }
+  }
+  // posiciones de reposo de cada partícula = forma actual (con movimiento, giro y ondas), vista de frente
+  function neuroHomes() {
+    var i, o, m, x, y, z, dx, dy, dz, sw, cs, sn, lw, fl, s0, px, py, pz, pe, ra, tt, mm = morph, ya = mc.w !== 0 || mc.b !== 0 || mc.f !== 0 || mc.v !== 0;
+    var cz = Math.cos(mc.rz), sz = Math.sin(mc.rz), cy = Math.cos(nRX), sy = Math.sin(nRX), cx = Math.cos(nRY), sx = Math.sin(nRY), pul = 1 + pulso * .1;
+    var kx = mc.tx * nPX / nScr, ky = mc.ty * nPX / nScr, ru = NREF, cr = crisp, rr = rough, wa = .25 + .3 * v.amp;
+    for (i = 0; i < nN; i++) {
+      o = i * 8; ra = cpu[o];
+      m = mm * 1.5 - ra * .5; m = m < 0 ? 0 : m > 1 ? 1 : m; m = m * m * (3 - 2 * m);
+      x = cpu[o + 2] + (cpu[o + 5] - cpu[o + 2]) * m; y = cpu[o + 3] + (cpu[o + 6] - cpu[o + 3]) * m; z = cpu[o + 4] + (cpu[o + 7] - cpu[o + 4]) * m;
+      sw = nt * wa * (1.3 - Math.sqrt(x * x + z * z)) * swirl; cs = Math.cos(sw); sn = Math.sin(sw);
+      dx = cs * x - sn * z; dz = sn * x + cs * z; dy = y;
+      if (ya) {
+        tt = (dy - .05) / -.6; tt = tt < 0 ? 0 : tt > 1 ? 1 : tt; lw = tt * tt * (3 - 2 * tt);
+        dx += mc.w * lw * Math.sin(mc.ph + dx * 4) * .2; dy += mc.w * lw * Math.max(0, Math.cos(mc.ph + dx * 4)) * .06 + mc.b * Math.abs(Math.sin(mc.ph)) * .1;
+        var a1 = (Math.abs(dx) - .1) / .6, a2 = (dy - .1) / .5; a1 = a1 < 0 ? 0 : a1 > 1 ? 1 : a1; a2 = a2 < 0 ? 0 : a2 > 1 ? 1 : a2;
+        fl = Math.max(a1 * a1 * (3 - 2 * a1), a2 * a2 * (3 - 2 * a2) * .7); dy += mc.f * Math.sin(mc.ph) * .22 * fl + mc.v * Math.sin(mc.ph + dx * 5) * .1 * (.4 + .6 * Math.abs(dx));
+      }
+      s0 = .82 + rr * .5 * ra * ra * ra + (1 - rr) * .1 * ra; s0 += (.95 - s0) * cr; s0 *= v.rad * pul;
+      px = dx * s0 * mc.sx; py = dy * s0 * mc.sy; pz = dz * s0;
+      var qx = px * cz - py * sz; py = px * sz + py * cz; px = qx;
+      var rx2 = px * cy + pz * sy; pz = -px * sy + pz * cy; px = rx2;
+      var ry2 = py * cx - pz * sx; pz = py * sx + pz * cx; py = ry2;
+      pe = 1.7 / (2.4 - pz);
+      nHX[i] = px * pe * ru + kx; nHY[i] = -py * pe * ru - ky; nZ[i] = pz;
+    }
+  }
+  function neuroPaso(dt, now) {
+    var i, j, k, l, a, b, x, y, r, nx, ny, st, q = Q(), G = g2, WW = nW, HH = nH, S = 0, mxl = nmx, myl = nmy;
+    if (!nlisto) neuroTam();
+    if (holo) {
+      S = Math.max(64, Math.round(Math.min(nW, nH) * tam)); if (!cnH) { cnH = document.createElement("canvas"); gH = cnH.getContext("2d"); }
+      var sPx = Math.round(S * nd); if (cnH.width !== sPx) { cnH.width = cnH.height = sPx; gH.setTransform(nd, 0, 0, nd, 0, 0); }
+      G = gH; WW = HH = S; mxl = myl = 1e9;
+    }
+    nstep++;
+    if (nstep % 45 === 0 && Math.max(1100, Math.min(NMAX, Math.round(q.n / 3.6))) !== nBase) neuroTam();
+    if (nstep % 12 === 1) {
+      nrgb = Math.round(v.c[3] * 255) + "," + Math.round(v.c[4] * 255) + "," + Math.round(v.c[5] * 255);
+      nlt = Math.round(v.c[3] * 255 + (255 - v.c[3] * 255) * .7) + "," + Math.round(v.c[4] * 255 + (255 - v.c[4] * 255) * .7) + "," + Math.round(v.c[5] * 255 + (255 - v.c[5] * 255) * .7);
+      raiz.style.setProperty("--hcy", ncy + "px"); raiz.style.setProperty("--hr", nR + "px");
+    }
+    if (holo) { nR = S / 2 * escU * .66; ncx = ncy = S / 2; } else { var asp2 = nW / nH; nR = Math.min(.55, asp2 * .9) * escU * (1 - .3 * limpioV) * nH / 2; ncx = nW / 2; ncy = nH / 2 * (1 - (.44 - .2 * limpioV)); }
+    nScr = Math.max(.05, nR / NREF); nPX = HH / 2;
+    var dtp = Math.min(dt, .033), f16 = dtp / .016; nt += dtp;
+    neuroHomes();
+    if (nforma !== formaN && morph >= .88) { nforma = formaN; if (nLinks) neuroSinapsis(); else { nLA = []; nLB = []; nLL = []; nADJ = []; npu = []; } }
+    // estado -> parámetros
+    st = (hablando || pendNav > 0 || actual === "respuesta" || actual === "feliz") ? "speak" : (actual === "procesando" || (ocupado && !hablando)) ? "think" : (grabando || actual === "escucha") ? "listen" : "idle";
+    var tg = NT[st]; for (k = 0; k < 6; k++) NC[k] += (tg[k] - NC[k]) * (1 - Math.pow(.94, f16));
+    // micrófono / voz: espectro
+    var an = (hablando && anS) ? anS : ((grabando || live) && anM) ? anM : null;
+    if (an) { try { an.getByteFrequencyData(nFz); } catch (er) {} for (k = 0; k < 48; k++) { var sv = nFz[1 + k] / 255; nSpec[k] += (sv - nSpec[k]) * (sv > nSpec[k] ? .7 : .2); } }
+    else for (k = 0; k < 48; k++) nSpec[k] *= .85;
+    nLvl += (Math.min(1, (an ? nvlN * 2.2 : 0)) - nLvl) * .3;
+    var fl = NC[0], sw = NC[1], bs = 1 + NC[2] * Math.sin(nt * NC[3]) + nLvl * .3, wv = NC[4], mr = NREF * .35, R0 = NREF * .8, br = .9, lk = nLinks ? .75 : 0;
+    // fondo: estela
+    G.globalCompositeOperation = "destination-out"; G.fillStyle = "rgba(0,0,0," + Math.min(.6, Math.max(.12, 1 - Math.pow(.76, f16))).toFixed(2) + ")"; G.fillRect(0, 0, WW, HH);
+    G.globalCompositeOperation = "source-over";
+    if (nt > nnext) { nnext = nt + (st === "speak" ? .5 : st === "listen" ? .9 : st === "think" ? 1.6 : 3.2); nrip.push([0, 0, nt, st === "idle" ? .8 : 1.1]); }
+    if (nLvl > .22 && nt > nmicBeat) { nmicBeat = nt + .22; nrip.push([0, 0, nt, .7 + nLvl * 1.8]); }
+    for (k = nrip.length - 1; k >= 0; k--) if (nt - nrip[k][2] > 2) nrip.splice(k, 1);
+    if (nNN && R() < NC[5] * dtp * nNN / 900 * (1 + nLvl * 14)) neuroDisparo((R() * nNN) | 0, 1);
+    for (k = nev.length - 1; k >= 0; k--) if (nev[k][0] <= nt) { var ev = nev[k]; nev.splice(k, 1); neuroDisparo(ev[1], ev[2]); }
+    for (i = 0; i < nNN; i++) nAct[i] *= .92;
+    // caras: según el ánimo o de vez en cuando
+    var caraOK = crisp < .3 && !rig && !relojOn && !holo && morph >= .9;
+    if (actual !== nUlt) { nUlt = actual; if (caraOK) { if (actual === "feliz") neuroCara("alegre", 3.5); else if (actual === "preocupado") neuroCara("pensativo", 4); else if (actual === "error") neuroCara("triste", 4); } }
+    if (caraOK && nt > nfaceNext) { nfaceNext = nt + 25 + R() * 35; if (!ocupado && !hablando && !grabando) neuroCara(["neutral", "curioso", "pensativo", "alegre"][(R() * 4) | 0], 4.5); }
+    if (!caraOK) nfaceT = 0; else if (nfaceT && nt > nfaceUntil) nfaceT = 0;
+    nfa += (nfaceT - nfa) * (1 - Math.pow(.93, f16));
+    var RS = R0 * .7, RW = R0 * .24, nrp = nrip.length, na = 0, nb = 0, dmp = Math.pow(.95, f16), zA = crisp < .5;
+    for (i = 0; i < nN; i++) {
+      x = nX[i]; y = nY[i]; r = Math.sqrt(x * x + y * y) + .001; nx = x / r; ny = y / r;
+      var hx = nHX[i], hy = nHY[i], fE = 0, ax, ay;
+      if (nfa > .01 && i >= nNN && i < nNN + nFN) { var kf = i - nNN; hx += (nFX[kf] - hx) * nfa; hy += (nFY[kf] - hy) * nfa; fE = nfa; }
+      ax = (hx * bs - x) * (5 + 14 * fE) + fl * (1 - .85 * fE) * (Math.sin(y * .021 + nt * .8) + Math.cos((x + y) * .009 - nt * .5));
+      ay = (hy * bs - y) * (5 + 14 * fE) + fl * (1 - .85 * fE) * (Math.cos(x * .019 - nt * .7) + Math.sin((x - y) * .011 + nt * .4));
+      if (sw) { ax -= ny * sw; ay += nx * sw; }
+      if (wv) { var w1 = Math.sin(r * .05 - nt * 7) * wv; ax += nx * w1; ay += ny * w1; }
+      if (an) { var sp = nSpec[Math.min(47, (Math.abs(Math.atan2(x, y)) / Math.PI * 47) | 0)]; if (sp > .02) { var qq = sp * sp * (.35 + .65 * Math.min(1, r / R0)) * 1600; ax += nx * qq; ay += ny * qq; } }
+      var dx = x - mxl, dy = y - myl, d2 = dx * dx + dy * dy;
+      if (d2 < mr * mr) { var dd = Math.sqrt(d2) + 1, kk = 1 - dd / mr, q2 = kk * kk * 1400 / nMS[i]; ax += dx / dd * q2; ay += dy / dd * q2; }
+      if (nburst) { ax += nx * nburst * 2500; ay += ny * nburst * 2500; }
+      var hot = 0;
+      for (k = 0; k < nrp; k++) {
+        var p = nrip[k], rx = x - p[0], ry = y - p[1], d = Math.sqrt(rx * rx + ry * ry) + .001, dr = d - (nt - p[2]) * RS;
+        if (dr < RW && dr > -RW) { var u = dr / RW, w2 = -Math.sin(u * 3.1416) * (1 - Math.abs(u)) * p[3] * (1 - (nt - p[2]) / 2) * 900 / nMS[i]; ax += rx / d * w2; ay += ry / d * w2; if (Math.abs(u) < .28) hot = 1; }
+      }
+      if (i < nNN) { if (hot && nAct[i] < .2 && R() < .012) neuroDisparo(i, .8); }
+      else if (fE < .3 && R() < .0008 * f16) { var aa = R() * 6.283, ss = 140 + R() * 220; nVX[i] += Math.cos(aa) * ss; nVY[i] += Math.sin(aa) * ss; hot = 1; }
+      var vx = (nVX[i] + ax * dtp) * dmp, vy = (nVY[i] + ay * dtp) * dmp;
+      nVX[i] = vx; nVY[i] = vy; nX[i] = x + vx * dtp; nY[i] = y + vy * dtp;
+      if (i >= nNN) { if (fE > .3 || hot || vx * vx + vy * vy > 1600 || Math.sin(nt * nFQ[i] + nPH[i]) > .93) nB[nb++] = i; else nA[na++] = i; }
+    }
+    nburst *= Math.pow(.92, f16); if (nburst < .01) nburst = 0;
+    var sk = Math.min(3.5, Math.max(1, .8 / nScr)), sz, zq;
+    G.save(); G.translate(ncx, ncy); G.scale(nScr, nScr);
+    G.fillStyle = "rgba(" + nrgb + "," + (.38 * br * (1 + nLvl * .8)).toFixed(2) + ")";
+    for (j = 0; j < na; j++) { i = nA[j]; sz = nSZ[i] * sk; if (zA) { zq = .75 + .35 * (nZ[i] + 1); sz *= zq < .5 ? .5 : zq; } G.fillRect(nX[i], nY[i], sz, sz); }
+    G.fillStyle = "rgba(" + nlt + "," + (.7 * br).toFixed(2) + ")";
+    for (j = 0; j < nb; j++) { i = nB[j]; G.fillRect(nX[i], nY[i], nSZ[i] * sk, nSZ[i] * sk); }
+    // sinapsis
+    G.lineWidth = .7 * sk; G.strokeStyle = "rgba(" + nrgb + "," + (.09 * br * lk).toFixed(3) + ")"; G.beginPath();
+    var act = [], ll = nLA.length;
+    for (l = 0; l < ll; l++) {
+      a = nLA[l]; b = nLB[l]; var ax2 = nX[a], ay2 = nY[a], bx2 = nX[b], by2 = nY[b], ddx = ax2 - bx2, ddy = ay2 - by2;
+      if (Math.sqrt(ddx * ddx + ddy * ddy) > nLL[l] * 2.6) continue;
+      var s2 = Math.max(nAct[a], nAct[b]);
+      if (s2 > .06) act.push(ax2, ay2, bx2, by2, s2); else { G.moveTo(ax2, ay2); G.lineTo(bx2, by2); }
+    }
+    G.stroke(); G.lineWidth = 1.3 * sk;
+    for (k = 0; k < act.length; k += 5) { G.strokeStyle = "rgba(" + nlt + "," + Math.min(1, act[k + 4] * .6 * br).toFixed(2) + ")"; G.beginPath(); G.moveTo(act[k], act[k + 1]); G.lineTo(act[k + 2], act[k + 3]); G.stroke(); }
+    // impulsos que viajan por las conexiones
+    for (k = npu.length - 1; k >= 0; k--) {
+      var pp2 = npu[k], u2 = (nt - pp2[2]) / pp2[3]; if (u2 >= 1) { npu.splice(k, 1); continue; }
+      var px2 = nX[pp2[0]] + (nX[pp2[1]] - nX[pp2[0]]) * u2, py2 = nY[pp2[0]] + (nY[pp2[1]] - nY[pp2[0]]) * u2;
+      G.fillStyle = "rgba(" + nlt + ",.12)"; G.fillRect(px2 - 3 * sk, py2 - 3 * sk, 6 * sk, 6 * sk); G.fillStyle = "rgba(" + nlt + ",1)"; G.fillRect(px2 - 1.2 * sk, py2 - 1.2 * sk, 2.4 * sk, 2.4 * sk);
+    }
+    // neuronas
+    for (i = 0; i < nNN; i++) {
+      var ac2 = nAct[i], s3 = (nSZ[i] * 1.15 + ac2 * 1.6) * sk, x3 = nX[i], y3 = nY[i];
+      G.fillStyle = "rgba(" + nrgb + "," + ((.05 + ac2 * .2) * br).toFixed(2) + ")"; G.beginPath(); G.arc(x3, y3, s3 * 1.7, 0, 6.2832); G.fill();
+      G.fillStyle = ac2 > .15 ? "rgba(" + nlt + "," + (.5 + ac2 * .35).toFixed(2) + ")" : "rgba(" + nrgb + "," + Math.min(1, .75 * br).toFixed(2) + ")"; G.fillRect(x3 - s3 / 2, y3 - s3 / 2, s3, s3);
+    }
+      G.restore();
+    if (holo) {
+      g2.setTransform(nd, 0, 0, nd, 0, 0); g2.globalCompositeOperation = "source-over"; g2.clearRect(0, 0, nW, nH);
+      var of = S / 2 + Math.min(nW, nH) * dist, sg = inv ? -1 : 1;
+      for (k = 0; k < 4; k++) {
+        var w = VISTAS[k], fx = w[2] * sg, fy = w[3] * sg;
+        g2.save(); g2.translate(nW / 2 + w[0] * of, nH / 2 - w[1] * of);
+        if (w[4]) g2.transform(0, -fy, -fx, 0, 0, 0); else g2.transform(fx, 0, 0, fy, 0, 0);
+        g2.drawImage(cnH, -S / 2, -S / 2, S, S); g2.restore();
+      }
+    }
+  }
+  var nvlN = 0, nPX = 300;
+  function neuroToque(ev) {
+    if (!estiloN || nVis !== true) return;
+    var px = (ev.clientX - ncx) / nScr, py = (ev.clientY - ncy) / nScr; nburst = .3; nrip.push([px, py, nt, 1.2]);
+    var bi = 0, bd = 1e12; for (var i = 0; i < nNN; i++) { var dx = nX[i] - px, dy = nY[i] - py, q = dx * dx + dy * dy; if (q < bd) { bd = q; bi = i; } }
+    if (nNN) neuroDisparo(bi, 1.3);
+  }
+  window.addEventListener("pointerdown", neuroToque);
+  window.addEventListener("pointermove", function (e) { nmx = (e.clientX - ncx) / nScr; nmy = (e.clientY - ncy) / nScr; });
+  window.addEventListener("pointerup", function () { nmx = nmy = 1e9; }); window.addEventListener("pointercancel", function () { nmx = nmy = 1e9; });
+  document.addEventListener("pointerleave", function () { nmx = nmy = 1e9; });
+  var nResTm = 0; window.addEventListener("resize", function () { clearTimeout(nResTm); nResTm = setTimeout(function () { if (estiloN && cn) neuroTam(); }, 200); });
+  function ponerLinks(on) { nLinks = !!on; ls("nexo_links", nLinks ? "1" : "0"); nforma = -1; }
+  function ponerEstilo(neuronal) { estiloN = !!g2 && neuronal; ls("nexo_estilo", estiloN ? "n" : "3d"); if (estiloN) { nlisto = false; } return { ok: true, hecho: estiloN ? "Holograma neuronal activado." : "Holograma de partículas 3D activado." }; }
+
   // ---------- Bucle de dibujo ----------
   var ptr = [0, 0], pos = [9, 9], pS = [0, 0], pulso = 0;
   window.addEventListener("pointermove", function (e) { ptr[0] = e.clientX / innerWidth * 2 - 1; ptr[1] = e.clientY / innerHeight * 2 - 1; pos[0] = ptr[0] * asp; pos[1] = -ptr[1]; });
   window.addEventListener("pointerdown", function () { pulso = 1; });
   var reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var holo = false, inv = false, inten = +ls("nexo_inten") || 2.4, tam = .3, dist = .04, cuenta = Q().n, velU = 1, escU = 1;
+  var holo = false, inv = false, inten = +ls("nexo_inten") || 2.4, tam = .36, dist = .04, cuenta = Q().n, velU = 1, escU = 1;
   var ult = 0, t = 0, ang = 0, acum = 0, cuadros = 0, pp = [9, 9], glitch = 0, sigG = 5, sigP = 2, fr = 0, raiz = document.documentElement;
   var VISTAS = [[0, 1, -1, 1, 0], [0, -1, 1, -1, 0], [1, 0, 1, 1, 1], [-1, 0, -1, -1, 1]];
   var ac = null, anS = null, anM = null, b1 = new Uint8Array(256), b2 = new Uint8Array(256), hablando = false, grabando = false, hablo = false, ultV = 0, t0 = 0, grab = null, fuente = null, pendNav = 0, streaming = false;
@@ -430,6 +657,8 @@
     limpioV += (limpioT - limpioV) * k; if (gm) gm.gain.value += (((escuchando || grabando || ocupado || hablando || pendNav > 0) ? .22 : 1) - gm.gain.value) * Math.min(1, dt * 5);
     crisp += (crispT - crisp) * k; swirl += (swirlT - swirl) * k; rotK += (rotT - rotK) * k;
     var wS = lim((rough - .3) / .7, 0, 1), rx = (ang * wS + Math.sin(ang * .8) * .75 * (1 - wS)) * rotK;
+    nRX = rx + pS[0] * .6 * (1 - .7 * crisp); nRY = pS[1] * .4 * (1 - .7 * crisp); nvlN = nvl;
+    var vn = estiloN; if (vn !== nVis) { nVis = vn; cv.style.visibility = vn ? "hidden" : "visible"; cn.style.visibility = vn ? "visible" : "hidden"; if (vn) nlisto = false; }
     gl.uniform1f(U.uLite, Q().lite); gl.uniform1f(U.uT, t); gl.uniform1f(U.uAmp, v.amp); gl.uniform1f(U.uRad, v.rad); gl.uniform1f(U.uWave, v.wave * f);
     gl.uniform1f(U.uPulse, pulso); gl.uniform1f(U.uDPR, dpr); gl.uniform1f(U.uBr, v.br * (1 + .04 * Math.sin(t * 40)));
     gl.uniform4f(U.uMA, mc.w, mc.b, mc.f, mc.v); gl.uniform3f(U.uMV, mc.tx, mc.ty, mc.rz); gl.uniform2f(U.uMS, mc.sx, mc.sy); gl.uniform1f(U.uPh, mc.ph); gl.uniform1f(U.uCrisp, crisp); gl.uniform1f(U.uSwirl, swirl); gl.uniform1f(U.uInt, (holo ? inten * 1.35 : inten) * (1 + .15 * crisp) * (.55 + .45 * Math.min(1, (Math.abs(mc.sx) + mc.sy) / 2))); gl.uniform1f(U.uGlitch, glitch); gl.uniform1f(U.uMorph, morph); gl.uniform1f(U.uRough, rough);
@@ -440,7 +669,7 @@
     if (!holo) {
       gl.uniform1f(U.uAsp, asp); gl.uniform1f(U.uScale, Math.min(.55, asp * .9) * escU * (1 - .3 * limpioV)); gl.uniform1f(U.uOff, .44 - .2 * limpioV); gl.uniform2f(U.uPtr, pp[0], pp[1]);
       gl.uniform2f(U.uFlip, 1, 1); gl.uniform1f(U.uSwap, 0); gl.uniform1f(U.uPS, tp);
-      gl.drawArrays(gl.POINTS, 0, cuenta);
+      if (!vn) gl.drawArrays(gl.POINTS, 0, cuenta);
     } else {
       var W = cv.width, H = cv.height, m = Math.min(W, H), q = Math.round(m * tam), off = q / 2 + m * dist, sg = inv ? -1 : 1;
       gl.enable(gl.SCISSOR_TEST);
@@ -449,9 +678,10 @@
         var x = Math.round(W / 2 + w[0] * off - q / 2), y = Math.round(H / 2 + w[1] * off - q / 2);
         gl.viewport(x, y, q, q); gl.scissor(x, y, q, q);
         gl.uniform2f(U.uFlip, w[2] * sg, w[3] * sg); gl.uniform1f(U.uSwap, w[4]);
-        gl.drawArrays(gl.POINTS, 0, cuenta);
+        if (!vn) gl.drawArrays(gl.POINTS, 0, cuenta);
       });
     }
+    if (vn) { try { neuroPaso(dt, now); } catch (er) { dlog("Neuro: " + er.message); estiloN = false; nVis = null; } }
     try { dibujarViz(dt, now); } catch (er) {}
   }
   requestAnimationFrame(dibujar);
@@ -503,8 +733,12 @@
     if (n === "abrir_app_movil") return abrirMovil(a.app, a.texto);
     if (n === "volumen_voz") { volV = lim((+a.nivel) / 100, 0, 1); ls("nexo_vol", String(volV)); if (gv) gv.gain.value = volV; return { ok: true, hecho: "Mi voz quedó al " + Math.round(volV * 100) + " por ciento." }; }
     if (n === "brillo_app") { var nb = lim(+a.nivel, 10, 100); ls("nexo_brillo", String(nb)); velo(nb); return { ok: true, hecho: "Brillo de la app al " + Math.round(nb) + " por ciento." }; }
+    if (n === "mostrar_imagen") return mostrarImagen(a);
+    if (n === "ocultar_imagen") { ocultarImg(); return { ok: true, hecho: "Imagen oculta." }; }
+    if (n === "estilo_holograma") return ponerEstilo(a.estilo !== "3d");
     if (n === "recordar") return recordar(a.dato);
     if (n === "olvidar") return olvidar(a.texto);
+    if (n === "buscar_recuerdos") return buscarRecuerdos(a.tema);
     if (n === "palabra_clave") return cambiarPalabra(a.palabra);
     if (n === "temporizador") return crearTm(a);
     if (n === "temporizadores") return gestionarTm(a);
@@ -564,7 +798,11 @@
     { name: "abrir_app_movil", description: "Abre una app o servicio en el celular: youtube, maps, spotify, whatsapp, telegram, instagram, tiktok, facebook, x, gmail, google, netflix, llamada, sms. texto = búsqueda, número de teléfono o mensaje.", parameters: P({ app: { type: "string" }, texto: { type: "string" } }, ["app"]) },
     { name: "volumen_voz", description: "Cambia el volumen de la voz de NEXO (0 a 100). No cambia el volumen del sistema.", parameters: P({ nivel: { type: "number" } }, ["nivel"]) },
     { name: "brillo_app", description: "Cambia el brillo de la pantalla de NEXO (10 a 100) oscureciendo la app. El brillo del sistema del celular no se puede cambiar desde una web.", parameters: P({ nivel: { type: "number" } }, ["nivel"]) },
+    { name: "mostrar_imagen", description: "Muestra una imagen REAL en el holograma (queda atenuado detrás) y también en el chat. consulta: SOLO el tema, corto y concreto (p. ej. «Torre Eiffel», «gato siamés», «Albert Einstein»). origen: wikipedia (fotos reales de personas, lugares, animales, objetos; por defecto), generar (la IA dibuja ideas o cosas imaginarias) o url (enlace https). segundos: cuánto dura (0 = hasta que el usuario la quite).", parameters: P({ consulta: { type: "string" }, origen: { type: "string", enum: ["wikipedia", "generar", "url"] }, segundos: { type: "number" } }, ["consulta"]) },
+    { name: "ocultar_imagen", description: "Quita la imagen que se está mostrando en el holograma.", parameters: P({}) },
+    { name: "estilo_holograma", description: "Cambia el estilo del holograma: neuronal (red morada de partículas y neuronas, por defecto) o 3d (nube de partículas en 3D).", parameters: P({ estilo: { type: "string", enum: ["neuronal", "3d"] } }, ["estilo"]) },
     { name: "recordar", description: "Guarda en tu memoria un dato duradero sobre el usuario (nombre, gustos, rutinas, lo que pida recordar).", parameters: P({ dato: { type: "string" } }, ["dato"]) },
+    { name: "buscar_recuerdos", description: "Busca en tu memoria a largo plazo datos del usuario relacionados con un tema (sin tema devuelve los más recientes). Úsala cuando necesites un dato personal que no ves en lo que recuerdas, o si te preguntan qué sabes de ellos.", parameters: P({ tema: { type: "string" } }) },
     { name: "olvidar", description: "Borra de tu memoria los datos que contengan ese texto.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "palabra_clave", description: "Cambia la palabra con la que el usuario te llama por voz (por defecto nexo).", parameters: P({ palabra: { type: "string" } }, ["palabra"]) }
   );
@@ -611,6 +849,7 @@
   TOOLS[0].functionDeclarations.push(
     { name: "pc_portapapeles_leer", description: "Lee el contenido del portapapeles de la PC.", parameters: P({}) },
     { name: "pc_portapapeles_escribir", description: "Escribe un texto en el portapapeles de la PC.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
+    { name: "pc_ver_pantalla", description: "Mira la pantalla de la PC ahora mismo y responde sobre lo que se ve (qué app está abierta, qué dice un texto, un error, etc.). Úsala cuando el usuario pregunte qué hay en su pantalla o pida ayuda con algo que está viendo.", parameters: P({ pregunta: { type: "string" } }) },
     { name: "pc_screenshot", description: "Toma una captura de pantalla de la PC y la descarga en el celular.", parameters: P({}) },
     { name: "pc_media", description: "Controla la reproduccion de medios en la PC: play, pause, siguiente, anterior, subir, bajar (volumen multimedia).", parameters: P({ accion: { type: "string", enum: ["play", "pause", "playpause", "siguiente", "anterior", "subir", "bajar"] } }, ["accion"]) },
     { name: "pc_tts", description: "Hace que la PC hable un texto en voz alta (texto a voz).", parameters: P({ texto: { type: "string" } }, ["texto"]) },
@@ -627,13 +866,13 @@
     { name: "pc_sesiones_opencode", description: "Lista las sesiones de OpenCode guardadas en la PC.", parameters: P({}) }
   );
   SYS.parts[0].text += " TV Roku: la controlas con roku_tecla, roku_app, roku_volumen, roku_buscar, roku_escribir, roku_estado y roku_energia. El volumen va por pasos, no por porcentaje, y no ves la pantalla de la TV, solo la app activa y lo que se reproduce. Para apagar la TV pregunta primero y usa confirmado=true solo cuando el usuario diga que sí. Si una herramienta de la TV dice que no llega al puente, díselo en una frase: inicia el puente en Termux con ./start_bridge.sh. Para poner una canción o video de YouTube en la TV usa roku_youtube (no roku_buscar). Para abrir algo en la TV usa roku_app; para abrir una app en el celular usa abrir_app_movil.";
-  SYS.parts[0].text += " PC: la controlas con pc_estado, pc_listar, pc_archivo, pc_descargar_carpeta, pc_subir, pc_volumen, pc_abrir_url, pc_abrir_app, pc_buscar, pc_info, pc_opencode, pc_portapapeles_leer, pc_portapapeles_escribir, pc_screenshot, pc_media, pc_tts, pc_procesos, pc_matar, pc_ventanas, pc_ventana, pc_buscar_archivos, pc_brillo, pc_notificaciones, pc_terminal, pc_wol, pc_backup y pc_sesiones_opencode. Usa pc_portapapeles para copiar/pegar entre PC y celular; pc_screenshot para ver la pantalla de la PC; pc_media para controlar reproduccion (play/pause/siguiente/anterior); pc_tts para que la PC hable; pc_procesos y pc_matar para gestionar procesos; pc_ventanas y pc_ventana para gestionar ventanas; pc_buscar_archivos para buscar archivos; pc_brillo para el brillo; pc_notificaciones para leer mensajes de la PC; pc_terminal para ejecutar comandos; pc_wol para encender equipos por red; pc_backup para copiar carpetas; pc_sesiones_opencode para listar sesiones. El puente corre en la PC en el puerto 8766; si no responde, dilo en una frase: inicia pc_bridge.js en la PC.";
+  SYS.parts[0].text += " PC: la controlas con pc_estado, pc_listar, pc_archivo, pc_descargar_carpeta, pc_subir, pc_volumen, pc_abrir_url, pc_abrir_app, pc_buscar, pc_info, pc_opencode, pc_portapapeles_leer, pc_portapapeles_escribir, pc_screenshot, pc_ver_pantalla (mirar y analizar la pantalla de la PC), mostrar_imagen (foto real en el holograma y el chat), pc_media, pc_tts, pc_procesos, pc_matar, pc_ventanas, pc_ventana, pc_buscar_archivos, pc_brillo, pc_notificaciones, pc_terminal, pc_wol, pc_backup y pc_sesiones_opencode. Usa pc_portapapeles para copiar/pegar entre PC y celular; pc_screenshot para ver la pantalla de la PC; pc_media para controlar reproduccion (play/pause/siguiente/anterior); pc_tts para que la PC hable; pc_procesos y pc_matar para gestionar procesos; pc_ventanas y pc_ventana para gestionar ventanas; pc_buscar_archivos para buscar archivos; pc_brillo para el brillo; pc_notificaciones para leer mensajes de la PC; pc_terminal para ejecutar comandos; pc_wol para encender equipos por red; pc_backup para copiar carpetas; pc_sesiones_opencode para listar sesiones. El puente corre en la PC en el puerto 8766; si no responde, dilo en una frase: inicia pc_bridge.js en la PC.";
   SYS.parts[0].text += " Sé preciso con lo que haces: nunca digas que guardaste, recordaste, aprendiste o ejecutaste algo si no llamaste a la herramienta que lo hace (para guardar datos usa recordar); no tienes acceso al brillo ni al volumen del sistema del celular desde esta web, solo al de la app y al de tu voz; y no inventes capacidades.";
-  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1; NECESITA.pc_listar = 1;
+  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1; NECESITA.pc_listar = 1; NECESITA.pc_ver_pantalla = 1; NECESITA.buscar_recuerdos = 1;
   SYS.parts[0].text += " Respondes como asistente de voz cálido y con personalidad: una o dos frases cortas y naturales (tres como máximo), sin listas, markdown ni emojis, porque se leen en voz alta; empieza por la respuesta, sin rodeos. Después de usar herramientas cuenta en una frase lo que hiciste; nunca respondas solo «Listo». Tus partículas forman cualquier cosa: palabras, números y la hora con escribir_con_particulas o mostrar_hora; objetos y animales con forma_con_emoji; dibujos propios con forma_con_trazo; cosas que se mueven (un gato caminando, un pájaro volando, un coche) con figura_animada, o con el parámetro movimiento y la herramienta animar. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz, brillo_app, temporizador (también alarmas a una hora), temporizadores (listar o cancelar), notas (nota_guardar, nota_leer, nota_borrar: listas de compras, ideas, apuntes), contacto (llamar, sms, whatsapp; NEXO deja un botón en pantalla y el usuario confirma con un toque), musica (archivos del celular que el usuario elige: elegir, reproducir, pausar, continuar, siguiente, anterior, detener, volumen) y pedir_archivo para que te muestre una foto, PDF, audio o texto. Para música en internet usa abrir_app_movil con youtube o spotify. Si piden el brillo o el volumen del sistema, o abrir el administrador de archivos, explica que desde una web no es posible y ofrece lo que sí puedes. Usa recordar para datos duraderos del usuario (gustos, nombre, rutinas) y las notas para apuntes y listas.";
   function sysAhora() {
     var t = new Date().toLocaleString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/[  ]/g, " ");
-    return { parts: [{ text: SYS.parts[0].text + "\nAhora mismo: " + t + "." + (mem.length ? "\nLo que recuerdas del usuario:\n- " + mem.join("\n- ") : "") }] };
+    return { parts: [{ text: SYS.parts[0].text + "\nAhora mismo: " + t + "." + (mem.length ? "\nLo que recuerdas del usuario" + (mem.length > 12 ? " (selección; si necesitas algo más usa buscar_recuerdos)" : "") + ":\n- " + memParaPrompt().map(function (m) { return m.t; }).join("\n- ") : "") }] };
   }
   var ENPC = /^http:\/\/(127\.0\.0\.1|localhost)(:|$)/.test(location.origin) || location.protocol === "file:";
   if (!ENPC) {
@@ -807,7 +1046,7 @@
     if (aud && !txt) partes.push({ text: "(Mensaje de voz del usuario. Empieza tu respuesta con la transcripción literal entre dobles corchetes, así: [[lo que dijo]], y a continuación respóndele normalmente.)" });
     if (img) partes.push({ inlineData: { mimeType: "image/jpeg", data: img } });
     if (adjunto) { adjunto.partes.forEach(function (x) { partes.push(x); }); adjunto = null; marcarAdj(); }
-    ultTrans = ""; turno(partes, burbuja, aud && !txt ? ub : null).then(function (r) {
+    ultTrans = ""; prepararMem(txt).then(function () { return turno(partes, burbuja, aud && !txt ? ub : null); }).then(function (r) {
       clearTimeout(vig); ocupado = false; streaming = false; r = (r || "Listo.").trim(); burbuja.textContent = r;
       hist.push({ role: "user", parts: [{ text: txt || ultTrans || "(mensaje de voz)" }] }, { role: "model", parts: [{ text: r }] }); if (hist.length > 16) hist = hist.slice(-16); ls("nexo_hist", JSON.stringify(hist));
       if (!/^(respuesta|feliz|preocupado)$/.test(actual)) fijar(emo || "respuesta"); pulso = 1;
@@ -977,6 +1216,7 @@
   function rapido(s) {
     var m = norm(s); if (m.length > 60) return false;
     if (rokuRapido(s, m)) return true;
+    if (/^(oye |nexo )?(por favor )?(quita|oculta|cierra|esconde|borra)( la| esa)? (imagen|foto)( por favor)?$/.test(m)) { msg("u", s); ocultarImg(); msg("n", "Listo."); return true; }
     if (/^(oye |nexo )?(por favor )?(que hora es|que horas son|que hora tienes|dime la hora|dame la hora|me dices la hora|muestrame la hora|muestra la hora|la hora|hora)( ahora| por favor| actual)?$/.test(m)) {
       msg("u", s); mostrarHora(); var t = horaHablada(); msg("n", t); fijar("respuesta"); pulso = 1; decir(t); return true;
     }
@@ -1051,22 +1291,148 @@
   velo(ls("nexo_brillo") ? +ls("nexo_brillo") : 100);
 
   // ---------- Memoria ----------
-  var mem = []; try { mem = JSON.parse(ls("nexo_mem") || "[]"); if (!Array.isArray(mem)) mem = []; } catch (er) { mem = []; }
-  function guardarMem() { mem = mem.slice(-80); ls("nexo_mem", JSON.stringify(mem)); }
+  // ---------- Imágenes reales: en el holograma y en el chat ----------
+  var himg = $("holoimg"), imgT = 0;
+  function ocultarImg() { clearTimeout(imgT); document.body.classList.remove("imgmode"); }
+  himg.addEventListener("click", ocultarImg);
+  function mostrarImg(url, secs) {
+    return new Promise(function (ok) {
+      himg.onload = function () { document.body.classList.add("imgmode"); ok(true); };
+      himg.onerror = function () { ocultarImg(); ok(false); };
+      himg.src = url; clearTimeout(imgT); if (secs !== 0) imgT = setTimeout(ocultarImg, (secs || 25) * 1000);
+    });
+  }
+  function jget(u, ms) {
+    var ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, ms || 9000);
+    return fetch(u, { signal: ctl.signal }).then(function (r) { clearTimeout(tm); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+  function limpiarTema(q) { return String(q || "").replace(/^(una |un |la |el |las |los )?(foto|fotos|imagen|imagenes|imágenes|fotografia|fotografía|picture)( real)? (de |del |de la |de los |de las )?/i, "").replace(/^(una |un |la |el |las |los )/i, "").trim() || String(q || "").trim(); }
+  function wikiBuscar(host, q) {
+    return jget("https://" + host + "/w/api.php?action=query&generator=search&gsrlimit=6&prop=pageimages&piprop=thumbnail&pithumbsize=900&format=json&origin=*&gsrsearch=" + encodeURIComponent(q)).then(function (j) {
+      var pg = j.query && j.query.pages; if (!pg) return null;
+      var arr = Object.keys(pg).map(function (k) { return pg[k]; }).sort(function (a, b) { return (a.index || 99) - (b.index || 99); }), p = null;
+      for (var i = 0; i < arr.length; i++) if (arr[i].thumbnail) { p = arr[i]; break; }
+      return p ? { url: p.thumbnail.source, titulo: p.title, fuente: "Wikipedia" } : null;
+    });
+  }
+  function commonsBuscar(q) {
+    return jget("https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|mime&iiurlwidth=900&format=json&origin=*&gsrsearch=" + encodeURIComponent(q)).then(function (j) {
+      var pg = j.query && j.query.pages; if (!pg) return null;
+      var arr = Object.keys(pg).map(function (k) { return pg[k]; }).sort(function (a, b) { return (a.index || 99) - (b.index || 99); });
+      for (var i = 0; i < arr.length; i++) { var ii = arr[i].imageinfo && arr[i].imageinfo[0]; if (ii && /image\/(jpeg|png)/.test(ii.mime || "") && (ii.thumburl || ii.url)) return { url: ii.thumburl || ii.url, titulo: String(arr[i].title || "").replace(/^Archivo:|^File:/, "").replace(/\.\w+$/, ""), fuente: "Wikimedia Commons" }; }
+      return null;
+    });
+  }
+  function buscarImagenReal(q) {
+    var t = limpiarTema(q), pasos = [function () { return wikiBuscar("es.wikipedia.org", t); }, function () { return wikiBuscar("en.wikipedia.org", t); }, function () { return commonsBuscar(t); }], i = 0;
+    function sig() { if (i >= pasos.length) return Promise.resolve(null); return pasos[i++]().catch(function () { return null; }).then(function (r) { return r || sig(); }); }
+    return sig();
+  }
+  function generarImagen(q) {
+    if (!clave) return Promise.resolve(null);
+    var ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, 30000);
+    return fetch(API + "gemini-2.5-flash-image:generateContent", { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify({ contents: [{ parts: [{ text: "Genera una imagen: " + q }] }], generationConfig: { responseModalities: ["IMAGE", "TEXT"] } }) })
+      .then(function (r) { clearTimeout(tm); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (j) { var ps = (j.candidates && j.candidates[0] && j.candidates[0].content.parts) || []; for (var i = 0; i < ps.length; i++) { var d = ps[i].inlineData || ps[i].inline_data; if (d && d.data) return { url: "data:" + (d.mimeType || d.mime_type || "image/png") + ";base64," + d.data, titulo: q, fuente: "generada por IA" }; } return null; })
+      .catch(function () { return null; });
+  }
+  function imagenEnChat(r) {
+    var d = document.createElement("div"); d.className = "m n im"; var im = document.createElement("img"); im.alt = r.titulo || ""; im.loading = "lazy"; im.src = r.url;
+    im.addEventListener("click", function () { mostrarImg(r.url, 25); }); im.addEventListener("load", function () { chat.scrollTop = chat.scrollHeight; });
+    var c = document.createElement("div"); c.className = "cap"; c.textContent = (r.titulo || "") + " · " + r.fuente;
+    d.appendChild(im); d.appendChild(c); chat.appendChild(d); while (chat.children.length > 60) chat.removeChild(chat.firstChild); chat.scrollTop = chat.scrollHeight;
+  }
+  function mostrarImagen(a) {
+    var q = String((a && a.consulta) || "").trim(), o = (a && a.origen) || "wikipedia", secs = a && a.segundos !== undefined ? +a.segundos : 25;
+    if (!q) return Promise.resolve({ ok: false, error: "Falta qué mostrar." });
+    var p = o === "url" ? Promise.resolve(/^https:\/\//.test(q) ? { url: q, titulo: "imagen", fuente: "enlace" } : null) : o === "generar" ? generarImagen(q).then(function (r) { return r || buscarImagenReal(q); }) : buscarImagenReal(q);
+    return p.then(function (r) {
+      if (!r) return { ok: false, error: "No encontré ninguna imagen para eso." };
+      return mostrarImg(r.url, secs).then(function (ok) {
+        if (!ok) return { ok: false, error: "No pude cargar la imagen." };
+        imagenEnChat(r); return { ok: true, hecho: "Mostrando «" + (r.titulo || q) + "» (" + r.fuente + ") en el holograma y en el chat." };
+      });
+    });
+  }
+
+  // ---------- Memoria semántica (hechos + embeddings, todo en este navegador) ----------
+  var MEMMAX = 300, EMB = "gemini-embedding-001", memTop = null, embFalla = 0, embTmr = 0;
+  var mem = [];
+  try {
+    var m2 = JSON.parse(ls("nexo_mem2") || "null");
+    if (Array.isArray(m2)) mem = m2.filter(function (x) { return x && typeof x.t === "string"; });
+    else { var m1 = JSON.parse(ls("nexo_mem") || "[]"); if (Array.isArray(m1)) mem = m1.filter(function (x) { return typeof x === "string"; }).map(function (t, i) { return { t: t, ts: Date.now() - (m1.length - i) * 1000, u: 0 }; }); }
+  } catch (er) { mem = []; }
+  function guardarMem() {
+    if (mem.length > MEMMAX) { var ord = mem.slice().sort(function (x, y) { return (x.u * 1e12 + x.ts) - (y.u * 1e12 + y.ts); }), fuera = ord.slice(0, mem.length - MEMMAX); mem = mem.filter(function (x) { return fuera.indexOf(x) < 0; }); }
+    try { localStorage.setItem("nexo_mem2", JSON.stringify(mem)); } catch (er) { try { localStorage.setItem("nexo_mem2", JSON.stringify(mem.map(function (x) { return { t: x.t, ts: x.ts, u: x.u }; }))); } catch (er2) {} }
+  }
+  function embedir(txt, tarea, ms) {
+    if (!clave || embFalla >= 3) return Promise.reject(new Error("sin embeddings"));
+    var ac = new AbortController(), tm = setTimeout(function () { ac.abort(); }, ms || 6000);
+    return fetch(API + EMB + ":embedContent", { method: "POST", signal: ac.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
+      body: JSON.stringify({ model: "models/" + EMB, content: { parts: [{ text: String(txt).slice(0, 600) }] }, taskType: tarea || "SEMANTIC_SIMILARITY", outputDimensionality: 256 }) })
+      .then(function (r) { clearTimeout(tm); if (!r.ok) { embFalla++; dlog("Memoria: embeddings HTTP " + r.status); throw new Error("HTTP " + r.status); } return r.json(); })
+      .then(function (j) {
+        var v = j.embedding && j.embedding.values; if (!v || !v.length) throw new Error("vacío");
+        var n = 0, i; for (i = 0; i < v.length; i++) n += v[i] * v[i]; n = Math.sqrt(n) || 1; embFalla = 0;
+        return v.map(function (x) { return Math.round(x / n * 1000) / 1000; });
+      }, function (e) { clearTimeout(tm); throw e; });
+  }
+  function embedirPend() {
+    clearTimeout(embTmr); if (!clave || embFalla >= 3) return;
+    var m = null, i; for (i = 0; i < mem.length; i++) if (!mem[i].e) { m = mem[i]; break; }
+    if (!m) return;
+    embedir(m.t, "SEMANTIC_SIMILARITY").then(function (v) { m.e = v; guardarMem(); embTmr = setTimeout(embedirPend, 400); }).catch(function () { embTmr = setTimeout(embedirPend, 15000); });
+  }
+  function tokens(t) { return norm(t).split(" ").filter(function (w) { return w.length > 3; }).map(function (w) { return w.slice(0, 5); }); }
+  function rankMem(q, qe, k) {
+    var qt = tokens(q);
+    return mem.map(function (m) {
+      var sem = 0, lex = 0, i;
+      if (qe && m.e && m.e.length === qe.length) { for (i = 0; i < qe.length; i++) sem += qe[i] * m.e[i]; }
+      if (qt.length) { var mt = " " + tokens(m.t).join(" ") + " "; var h = 0; qt.forEach(function (w) { if (mt.indexOf(" " + w + " ") >= 0) h++; }); lex = h / qt.length; }
+      return { m: m, s: (sem > .6 ? sem : 0) + .6 * lex };
+    }).filter(function (x) { return x.s > .3; }).sort(function (x, y) { return y.s - x.s; }).slice(0, k || 8).map(function (x) { return x.m; });
+  }
+  function prepararMem(txt) {
+    memTop = null; if (mem.length <= 12 || !txt || String(txt).length < 4) return Promise.resolve();
+    return embedir(txt, "SEMANTIC_SIMILARITY", 700).catch(function () { return null; }).then(function (qe) {
+      memTop = rankMem(txt, qe, 10); memTop.forEach(function (m) { m.u = (m.u || 0) + 1; });
+    });
+  }
+  function memParaPrompt() {
+    if (mem.length <= 12) return mem;
+    var base = memTop || [], rec = mem.slice(-5), fav = mem.slice().sort(function (x, y) { return (y.u || 0) - (x.u || 0); }).slice(0, 5), out = [];
+    base.concat(rec, fav).forEach(function (m) { if (out.indexOf(m) < 0) out.push(m); });
+    return out.slice(0, 18);
+  }
+  var SENS = /\b\d{13,19}\b|contrase[nñ]a|password|cvv|pin\s*\d/i;
   function recordar(d) {
     d = String(d || "").trim().slice(0, 300); if (d.length < 3) return { ok: false, error: "No hay nada que recordar." };
-    if (mem.some(function (x) { return norm(x) === norm(d); })) return { ok: true, hecho: "Ya lo tenía anotado." };
-    mem.push(d); guardarMem(); return { ok: true, hecho: "Anotado." };
+    if (SENS.test(d)) return { ok: false, error: "Eso es un dato sensible (contraseña o número de tarjeta); no lo guardo." };
+    if (mem.some(function (x) { return norm(x.t) === norm(d); })) return { ok: true, hecho: "Ya lo tenía anotado." };
+    mem.push({ t: d, ts: Date.now(), u: 0 }); guardarMem(); clearTimeout(embTmr); embTmr = setTimeout(embedirPend, 300); return { ok: true, hecho: "Anotado." };
   }
   function olvidar(t) {
     var n0 = mem.length, k = norm(t || ""); if (!k) return { ok: false, error: "Dime qué debo olvidar." };
-    mem = mem.filter(function (x) { return norm(x).indexOf(k) < 0; }); guardarMem();
+    mem = mem.filter(function (x) { return norm(x.t).indexOf(k) < 0; }); guardarMem();
     return mem.length < n0 ? { ok: true, hecho: "Olvidado." } : { ok: false, error: "No tenía nada sobre eso." };
   }
+  function buscarRecuerdos(tema) {
+    tema = String(tema || "").trim();
+    if (!mem.length) return Promise.resolve({ ok: true, recuerdos: [], hecho: "Todavía no sé nada del usuario." });
+    if (!tema) return Promise.resolve({ ok: true, total: mem.length, recuerdos: mem.slice(-40).map(function (m) { return m.t; }) });
+    return embedir(tema, "SEMANTIC_SIMILARITY", 2500).catch(function () { return null; }).then(function (qe) {
+      var r = rankMem(tema, qe, 8); r.forEach(function (m) { m.u = (m.u || 0) + 1; }); guardarMem();
+      return { ok: true, total: mem.length, recuerdos: r.map(function (m) { return m.t; }), hecho: r.length ? undefined : "No encontré nada sobre eso." };
+    });
+  }
+  setTimeout(embedirPend, 5000);
   function cargarHist() {
     try { var h = JSON.parse(ls("nexo_hist") || "[]"); if (!Array.isArray(h)) return []; h = h.filter(function (x) { return x && x.role && x.parts && x.parts[0] && typeof x.parts[0].text === "string"; }).slice(-16); while (h.length && h[0].role !== "user") h.shift(); return h; } catch (er) { return []; }
   }
-  $("borrar").addEventListener("click", function () { if (!window.confirm("¿Borrar todo lo que recuerdo de ti y la conversación guardada?")) return; mem = []; hist = []; ls("nexo_mem", null); ls("nexo_hist", null); msg("n", "Listo, empecé de cero."); });
+  $("borrar").addEventListener("click", function () { if (!window.confirm("¿Borrar todo lo que recuerdo de ti y la conversación guardada?")) return; mem = []; memTop = null; hist = []; ls("nexo_mem", null); ls("nexo_mem2", null); ls("nexo_hist", null); msg("n", "Listo, empecé de cero."); });
 
   // ---------- Voz del navegador (selector) ----------
   function llenarVoces() {
@@ -1287,6 +1653,7 @@
     else if (a === "tm") msg("n", textoTm());
     else if (a === "notas") msg("n", textoNotas());
     else if (a === "piramide") ponerHolo(!holo);
+    else if (a === "estilo") { var rr0 = ponerEstilo(!estiloN); msg("n", rr0.hecho); }
     else if (a === "controles") { $("pruebas").open = true; }
     else if (a === "diag") abrirDiag();
     else if (a === "live") { $("liveon").checked = !liveOn; $("liveon").dispatchEvent(new Event("change")); if (liveOn && !live) liveToggle(); }
@@ -1804,6 +2171,21 @@
       var tk = ls("nexo_pc_token") || "nexo-pc-2026";
       return fetch(PC_URL + "/portapapeles?token=" + encodeURIComponent(tk), { method: "POST", headers: { "x-token": tk, "Content-Type": "application/json" }, body: JSON.stringify({ texto: texto }) }).then(function (r) { return r.json(); });
     },
+    pantalla: function (pregunta) {
+      var tk = ls("nexo_pc_token") || "nexo-pc-2026";
+      return fetch(PC_URL + "/pantalla?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+        if (j.bloqueada) return { ok: true, hecho: "La ventana activa (" + (j.ventana && j.ventana.proceso || "?") + ") está en la lista privada, no la miro." };
+        if (!clave) return { ok: false, error: "Necesito la clave de Gemini para analizar la imagen." };
+        var q = String(pregunta || "").trim() || "Describe brevemente qué se ve en la pantalla y qué está haciendo el usuario.";
+        var ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, 25000);
+        var cuerpo = { contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: j.jpeg } }, { text: "Captura de la pantalla del PC del usuario. Ventana activa: " + (j.ventana.proceso || "?") + " — «" + (j.ventana.titulo || "") + "». " + q + " Responde en español, breve y concreto. Si ves contraseñas, números de tarjeta o datos privados, no los repitas." }] }] };
+        return fetch(API + MODELOS[0] + ":generateContent", { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": clave }, body: JSON.stringify(cuerpo) }).then(function (r) { clearTimeout(tm); if (!r.ok) throw new Error("Gemini HTTP " + r.status); return r.json(); }).then(function (g) {
+          var t = ""; try { t = g.candidates[0].content.parts.map(function (p) { return p.text || ""; }).join(" ").trim(); } catch (er) {}
+          return t ? { ok: true, hecho: t, ventana: (j.ventana.proceso || "") + " — " + (j.ventana.titulo || "") } : { ok: false, error: "Gemini no devolvió descripción." };
+        });
+      });
+    },
     screenshot: function () {
       var tk = ls("nexo_pc_token") || "nexo-pc-2026";
       return fetch(PC_URL + "/screenshot?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) {
@@ -1960,6 +2342,7 @@
     }
     if (n === "pc_portapapeles_leer") return pc.clipboardLeer().then(function (j) { return j && j.ok ? { ok: true, hecho: "Portapapeles: " + (j.texto || "(vacio)") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_portapapeles_escribir") return pc.clipboardEscribir(a.texto).then(function (j) { return j && j.ok ? { ok: true, hecho: "Portapapeles actualizado." } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
+    if (n === "pc_ver_pantalla") return pc.pantalla(a.pregunta).catch(function (e) { return { ok: false, error: /Gemini/.test(e && e.message || "") ? e.message : MSG_PC }; });
     if (n === "pc_screenshot") return pc.screenshot().catch(function (e) { return { ok: false, error: "Error: " + (e && e.message) }; });
     if (n === "pc_media") return pc.mediaPC(a.accion).then(function (j) { return j && j.ok ? { ok: true, hecho: "Media: " + a.accion } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_tts") return pc.ttsPC(a.texto).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "La PC hablo.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });

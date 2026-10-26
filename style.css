@@ -98,3 +98,60 @@ body.limpio:not(.teclado) footer, body.limpio:not(.teclado) #chat { display: non
 #diag.abierta { display: block; }
 #diag pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Menlo, monospace; color: #ffd9a8; margin: 0 0 14px; }
 #diag .fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding-bottom: 20px; }
+
+/* ======== v2.5: tema NEXO neuronal (morado) ======== */
+:root { --texto: #eee8ff; --apagado: #8f81b0; --rgb: 168,121,255; --bg: #03040a; --bg2: #100b22; }
+body { background: radial-gradient(ellipse at 50% 40%, var(--bg2), var(--bg) 72%); }
+body.holo { background: #000; }
+#neuro { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; visibility: hidden; transition: opacity .7s; }
+body.imgmode #neuro, body.imgmode #lienzo { opacity: .3; }
+#lienzo { transition: opacity .7s; }
+/* cabecera */
+#nexo-head { position: fixed; left: 0; right: 0; top: 0; height: 56px; z-index: 4; display: flex; align-items: center; justify-content: space-between; padding: env(safe-area-inset-top) 14px 0 100px; pointer-events: none; }
+body:not(.limpio) #nexo-head { padding-left: 62px; }
+body.holo #nexo-head { display: none; }
+.brand-mark { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-orb { flex: none; width: 24px; height: 24px; border: 2px solid #b99aff; border-radius: 50%; transform: rotate(-35deg) scaleX(.72); box-shadow: 0 0 16px rgba(var(--rgb), .45), inset 0 0 10px rgba(var(--rgb), .2); }
+.brand-name { font-size: 15px; letter-spacing: .22em; color: #eee8ff; font-weight: 500; line-height: 1.05; white-space: nowrap; }
+.brand-name b { color: rgb(var(--rgb)); font-weight: 500; }
+.brand-name small { display: block; margin-top: 4px; font-size: 7.5px; letter-spacing: .25em; color: #74658f; }
+.head-status { display: flex; align-items: center; gap: 7px; color: #81759c; font-size: 8.5px; letter-spacing: .14em; white-space: nowrap; }
+.status-led { width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--rgb)); box-shadow: 0 0 10px rgb(var(--rgb)); flex: none; }
+.status-sep { color: #43375d; }
+body.s-listen .status-led { background: #55c9ff; box-shadow: 0 0 10px #55c9ff; }
+body.s-think .status-led { background: #bc80ff; box-shadow: 0 0 13px #bc80ff; animation: nxPulse .8s infinite alternate; }
+body.s-speak .status-led { background: #66f0d0; box-shadow: 0 0 10px #66f0d0; }
+body.s-error .status-led { background: #ff5577; box-shadow: 0 0 10px #ff5577; }
+@keyframes nxPulse { to { opacity: .35; transform: scale(.75); } }
+@media (max-width: 520px) { .head-status .status-sep, .head-status .priv { display: none; } .brand-name { font-size: 13px; } .brand-name small { display: none; } }
+main { padding-top: 58px; }
+/* barra de comando en píldora */
+#formulario { background: linear-gradient(110deg, rgba(24,16,43,.86), rgba(8,9,20,.9)); border: 1px solid rgba(168,121,255,.48); box-shadow: 0 0 32px rgba(107,68,211,.14), inset 0 0 22px rgba(120,80,230,.04); }
+#formulario:focus-within { border-color: rgba(196,169,255,.85); box-shadow: 0 0 34px rgba(133,89,255,.24), inset 0 0 22px rgba(120,80,230,.07); }
+#entrada::placeholder { color: #76688f; }
+#formulario button { background: rgba(168,121,255,.14); }
+#formulario .ico.on { background: rgba(168,121,255,.55); box-shadow: 0 0 18px rgba(168,121,255,.7); }
+/* chat, chips, menús */
+.m.n { background: rgba(168,121,255,.07); border-color: rgba(168,121,255,.16); }
+.m.u { background: rgba(168,121,255,.15); border-color: rgba(168,121,255,.32); }
+.m.im { padding: 6px; max-width: min(88%, 380px); }
+.m.im img { display: block; width: 100%; max-height: 40vh; object-fit: cover; border-radius: 12px; cursor: pointer; background: #0a0714; }
+.m.im .cap { margin-top: 5px; font-size: .72rem; color: var(--apagado); letter-spacing: .02em; }
+.chip { background: rgba(168,121,255,.22); border-color: rgba(168,121,255,.8); box-shadow: 0 0 18px rgba(168,121,255,.4); }
+#mini button { background: rgba(24,16,43,.6); border-color: rgba(168,121,255,.34); }
+#mini button.on { background: rgba(168,121,255,.5); }
+#hoja .panel { background: #0e0a1c; border-color: rgba(168,121,255,.38); }
+#hoja button { border-color: rgba(168,121,255,.16); }
+#pruebas[open] { background: rgba(10,7,22,.92); }
+#holoctl select { background: #150f2b; border-color: rgba(168,121,255,.3); }
+#diag { background: rgba(5,4,12,.99); }
+#diag pre { color: #d9ccff; }
+/* imagen real dentro del holograma */
+#holoimg { position: fixed; left: 50%; top: var(--hcy, 36%); width: calc(var(--hr, 170px) * 2 * .9); height: calc(var(--hr, 170px) * 2 * .9); transform: translate(-50%, -50%) scale(.94); object-fit: contain; opacity: 0; pointer-events: none; z-index: 3; transition: opacity .7s, transform .7s; -webkit-mask-image: radial-gradient(ellipse at center, #000 52%, transparent 76%); mask-image: radial-gradient(ellipse at center, #000 52%, transparent 76%); filter: saturate(1.1) contrast(1.05) drop-shadow(0 0 16px rgba(var(--rgb), .35)); }
+body.imgmode #holoimg { opacity: .95; transform: translate(-50%, -50%) scale(1); pointer-events: auto; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .status-led { animation: none !important; } }
+/* modo pirámide (láminas transparentes): solo el holograma en 4 vistas */
+body.holo #sub, body.holo #slotU, body.holo #acc { display: none; }
+body.holo main { padding-top: 14px; }
+body.holo #pruebas { opacity: .45; }
+body.holo #mini button { opacity: .5; }
