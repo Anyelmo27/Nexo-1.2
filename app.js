@@ -850,7 +850,14 @@
     { name: "pc_portapapeles_leer", description: "Lee el contenido del portapapeles de la PC.", parameters: P({}) },
     { name: "pc_portapapeles_escribir", description: "Escribe un texto en el portapapeles de la PC.", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "pc_ver_pantalla", description: "Mira la pantalla de la PC ahora mismo y responde sobre lo que se ve (qué app está abierta, qué dice un texto, un error, etc.). Úsala cuando el usuario pregunte qué hay en su pantalla o pida ayuda con algo que está viendo.", parameters: P({ pregunta: { type: "string" } }) },
-    { name: "pc_screenshot", description: "Toma una captura de pantalla de la PC y la descarga en el celular.", parameters: P({}) },
+    { name: "pc_screenshot", description: "Toma una captura de pantalla de la PC y la MUESTRA en el holograma y en el chat del celular (con un botón para guardarla).", parameters: P({}) },
+    { name: "pc_traer", description: "Trae un archivo de la PC al celular. accion=traer lo guarda en el celular y, si es imagen, canción o video, además lo muestra o lo reproduce en NEXO; accion=ver solo lo muestra o reproduce sin guardarlo. Usa antes pc_listar para conocer la ruta exacta.", parameters: P({ ruta: { type: "string" }, accion: { type: "string", enum: ["traer", "ver"] } }, ["ruta"]) },
+    { name: "pc_reproducir", description: "Abre un archivo (canción, video, imagen o documento) en la PC con su programa predeterminado, por ejemplo para que una canción suene en la PC. Para pausar o cambiar el volumen usa pc_media.", parameters: P({ ruta: { type: "string" } }, ["ruta"]) },
+    { name: "pc_ordenar", description: "Ordena una carpeta de la PC (escritorio, documentos, descargas…) con OpenCode. Primero propone un plan y espera la confirmación del usuario; nunca borra archivos.", parameters: P({ carpeta: { type: "string" }, criterio: { type: "string", description: "Cómo ordenar: por tipo de archivo, por fecha, por proyecto…" } }, ["carpeta"]) },
+    { name: "mostrar_video", description: "Muestra un mini video en el holograma, con su sonido, y silencia el micrófono mientras suena. origen=web busca en Pexels (consulta en lenguaje natural, por ejemplo «amanecer en la montaña»), origen=pc usa un archivo de la PC (consulta = ruta), origen=url un enlace https.", parameters: P({ consulta: { type: "string" }, origen: { type: "string", enum: ["web", "pc", "url"] }, segundos: { type: "number", description: "Duración en segundos; 0 = hasta que termine" }, sonido: { type: "boolean" }, bucle: { type: "boolean" } }, ["consulta"]) },
+    { name: "opencode_implementar", description: "Le pide a OpenCode que implemente una mejora en el código de NEXO (esta app), la suba a GitHub y NEXO se actualiza sola. Úsala SOLO cuando el usuario ya aprobó explícitamente una opción; en ese caso pon aprobado=true.", parameters: P({ tarea: { type: "string", description: "Qué implementar, bien descrito" }, aprobado: { type: "boolean" } }, ["tarea", "aprobado"]) },
+    { name: "opencode_revertir", description: "Le pide a OpenCode volver a la versión anterior de NEXO si un cambio salió mal. Solo con aprobación explícita del usuario (aprobado=true).", parameters: P({ aprobado: { type: "boolean" } }, ["aprobado"]) },
+    { name: "nexo_proyecto", description: "Guarda (o consulta si no envías ruta) la carpeta de la PC donde está el código de NEXO.", parameters: P({ ruta: { type: "string" } }) },
     { name: "pc_media", description: "Controla la reproduccion de medios en la PC: play, pause, siguiente, anterior, subir, bajar (volumen multimedia).", parameters: P({ accion: { type: "string", enum: ["play", "pause", "playpause", "siguiente", "anterior", "subir", "bajar"] } }, ["accion"]) },
     { name: "pc_tts", description: "Hace que la PC hable un texto en voz alta (texto a voz).", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "pc_procesos", description: "Lista los procesos de la PC con CPU y memoria (top 25).", parameters: P({}) },
@@ -867,8 +874,9 @@
   );
   SYS.parts[0].text += " TV Roku: la controlas con roku_tecla, roku_app, roku_volumen, roku_buscar, roku_escribir, roku_estado y roku_energia. El volumen va por pasos, no por porcentaje, y no ves la pantalla de la TV, solo la app activa y lo que se reproduce. Para apagar la TV pregunta primero y usa confirmado=true solo cuando el usuario diga que sí. Si una herramienta de la TV dice que no llega al puente, díselo en una frase: inicia el puente en Termux con ./start_bridge.sh. Para poner una canción o video de YouTube en la TV usa roku_youtube (no roku_buscar). Para abrir algo en la TV usa roku_app; para abrir una app en el celular usa abrir_app_movil.";
   SYS.parts[0].text += " PC: la controlas con pc_estado, pc_listar, pc_archivo, pc_descargar_carpeta, pc_subir, pc_volumen, pc_abrir_url, pc_abrir_app, pc_buscar, pc_info, pc_opencode, pc_portapapeles_leer, pc_portapapeles_escribir, pc_screenshot, pc_ver_pantalla (mirar y analizar la pantalla de la PC), mostrar_imagen (foto real en el holograma y el chat), pc_media, pc_tts, pc_procesos, pc_matar, pc_ventanas, pc_ventana, pc_buscar_archivos, pc_brillo, pc_notificaciones, pc_terminal, pc_wol, pc_backup y pc_sesiones_opencode. Usa pc_portapapeles para copiar/pegar entre PC y celular; pc_screenshot para ver la pantalla de la PC; pc_media para controlar reproduccion (play/pause/siguiente/anterior); pc_tts para que la PC hable; pc_procesos y pc_matar para gestionar procesos; pc_ventanas y pc_ventana para gestionar ventanas; pc_buscar_archivos para buscar archivos; pc_brillo para el brillo; pc_notificaciones para leer mensajes de la PC; pc_terminal para ejecutar comandos; pc_wol para encender equipos por red; pc_backup para copiar carpetas; pc_sesiones_opencode para listar sesiones. El puente corre en la PC en el puerto 8766; si no responde, dilo en una frase: inicia pc_bridge.js en la PC.";
+  SYS.parts[0].text += " Archivos y video de la PC: pc_listar muestra una tarjeta tocable en pantalla; pc_traer trae un archivo al celular (traer = guardarlo y, si es imagen, canción o video, también mostrarlo o reproducirlo; ver = solo mostrarlo); pc_reproducir abre un archivo en la PC con su reproductor; pc_ordenar ordena una carpeta con OpenCode (primero un plan y espera la confirmación; nunca borra); mostrar_video pone un mini video en el holograma y silencia el micrófono mientras suena. AUTOMEJORA: cuando el usuario te pregunte qué quiere que te implementen o qué mejoras podrías tener, sugiere 3 o 4 opciones concretas y realistas según lo que ya sabes hacer; solo cuando él apruebe una opción de forma explícita (por ejemplo «sí, dile a OpenCode que lo implemente») llama a opencode_implementar con aprobado=true y la tarea bien descrita. Tras terminar, OpenCode sube los cambios y tú te actualizas sola; si algo sale mal, ofrece opencode_revertir.";
   SYS.parts[0].text += " Sé preciso con lo que haces: nunca digas que guardaste, recordaste, aprendiste o ejecutaste algo si no llamaste a la herramienta que lo hace (para guardar datos usa recordar); no tienes acceso al brillo ni al volumen del sistema del celular desde esta web, solo al de la app y al de tu voz; y no inventes capacidades.";
-  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1; NECESITA.pc_listar = 1; NECESITA.pc_ver_pantalla = 1; NECESITA.buscar_recuerdos = 1;
+  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1; NECESITA.pc_listar = 1; NECESITA.pc_ver_pantalla = 1; NECESITA.pc_ordenar = 1; NECESITA.opencode_implementar = 1; NECESITA.opencode_revertir = 1; NECESITA.nexo_proyecto = 1; NECESITA.buscar_recuerdos = 1;
   SYS.parts[0].text += " Respondes como asistente de voz cálido y con personalidad: una o dos frases cortas y naturales (tres como máximo), sin listas, markdown ni emojis, porque se leen en voz alta; empieza por la respuesta, sin rodeos. Después de usar herramientas cuenta en una frase lo que hiciste; nunca respondas solo «Listo». Tus partículas forman cualquier cosa: palabras, números y la hora con escribir_con_particulas o mostrar_hora; objetos y animales con forma_con_emoji; dibujos propios con forma_con_trazo; cosas que se mueven (un gato caminando, un pájaro volando, un coche) con figura_animada, o con el parámetro movimiento y la herramienta animar. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz, brillo_app, temporizador (también alarmas a una hora), temporizadores (listar o cancelar), notas (nota_guardar, nota_leer, nota_borrar: listas de compras, ideas, apuntes), contacto (llamar, sms, whatsapp; NEXO deja un botón en pantalla y el usuario confirma con un toque), musica (archivos del celular que el usuario elige: elegir, reproducir, pausar, continuar, siguiente, anterior, detener, volumen) y pedir_archivo para que te muestre una foto, PDF, audio o texto. Para música en internet usa abrir_app_movil con youtube o spotify. Si piden el brillo o el volumen del sistema, o abrir el administrador de archivos, explica que desde una web no es posible y ofrece lo que sí puedes. Usa recordar para datos duraderos del usuario (gustos, nombre, rutinas) y las notas para apuntes y listas.";
   function sysAhora() {
     var t = new Date().toLocaleString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/[  ]/g, " ");
@@ -1157,7 +1165,7 @@
       grab = { st: st, src: s, pr: pr, bufs: bufs, rate: a.sampleRate }; grabando = true; hablo = false; piso = 0; t0 = performance.now(); fijar("escucha"); $("bmic").classList.add("on");
     }).catch(function (e) { abriendo = false; fijar("error"); apagarConv(); msg("e", mensajeMic(e)); });
   }
-  function escuchar() {
+  function escuchar() { if (micSilencio) return;
     if (escuchando || grabando || abriendo || ocupado) return;
     if (!window.isSecureContext) { fijar("error"); apagarConv(); msg("e", "El micrófono solo funciona en una página segura (https o localhost). Abre NEXO desde su dirección de GitHub Pages."); return; }
     pararWake(); audio(); detenerVoz(); limpiarTm();
@@ -1293,9 +1301,9 @@
   // ---------- Memoria ----------
   // ---------- Imágenes reales: en el holograma y en el chat ----------
   var himg = $("holoimg"), imgT = 0;
-  function ocultarImg() { clearTimeout(imgT); document.body.classList.remove("imgmode"); }
+  function ocultarImg() { clearTimeout(imgT); document.body.classList.remove("imgmode"); document.body.classList.remove("imgwide"); }
   himg.addEventListener("click", ocultarImg);
-  function mostrarImg(url, secs) {
+  function mostrarImg(url, secs, ancha) { document.body.classList.toggle("imgwide", !!ancha);
     return new Promise(function (ok) {
       himg.onload = function () { document.body.classList.add("imgmode"); ok(true); };
       himg.onerror = function () { ocultarImg(); ok(false); };
@@ -1338,7 +1346,7 @@
   }
   function imagenEnChat(r) {
     var d = document.createElement("div"); d.className = "m n im"; var im = document.createElement("img"); im.alt = r.titulo || ""; im.loading = "lazy"; im.src = r.url;
-    im.addEventListener("click", function () { mostrarImg(r.url, 25); }); im.addEventListener("load", function () { chat.scrollTop = chat.scrollHeight; });
+    im.addEventListener("click", function () { mostrarImg(r.url, 25, r.ancha); }); im.addEventListener("load", function () { chat.scrollTop = chat.scrollHeight; });
     var c = document.createElement("div"); c.className = "cap"; c.textContent = (r.titulo || "") + " · " + r.fuente;
     d.appendChild(im); d.appendChild(c); chat.appendChild(d); while (chat.children.length > 60) chat.removeChild(chat.firstChild); chat.scrollTop = chat.scrollHeight;
   }
@@ -1354,6 +1362,274 @@
       });
     });
   }
+
+
+  // ---------- v2.6: PC ↔ celular (imágenes en el chat, explorador, traer archivos, video en el holograma, OpenCode) ----------
+  var micSilencio = false, micAntes = null, tarT = 0, VER0 = null, forzarSw = null;
+  function fmtTam(b) { b = +b || 0; return b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(0) + " KB" : b < 1073741824 ? (b / 1048576).toFixed(1) + " MB" : (b / 1073741824).toFixed(2) + " GB"; }
+  function pcTk() { return ls("nexo_pc_token") || "nexo-pc-2026"; }
+  function nombreDe(r) { return String(r || "").split("/").pop().split("\\").pop() || "archivo"; }
+  function descargarBlob(blob, nombre) { var u = URL.createObjectURL(blob), a = document.createElement("a"); a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 60000); }
+  function resumenVoz(s) { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > 380 ? s.slice(0, 380) + "…" : s; }
+  // En pantalla limpia el chat está oculto: las tarjetas (explorador, descargas) salen en una bandeja sobre el orbe.
+  function ponerTarjeta(node) {
+    var limpio = document.body.classList.contains("limpio") && !document.body.classList.contains("teclado");
+    if (limpio) {
+      var t = $("tarjeta"); t.innerHTML = "";
+      var x = document.createElement("button"); x.type = "button"; x.className = "tx"; x.textContent = "✕";
+      x.addEventListener("click", function () { t.classList.remove("on"); t.innerHTML = ""; });
+      t.appendChild(x); t.appendChild(node); t.classList.add("on");
+      clearTimeout(tarT); tarT = setTimeout(function () { t.classList.remove("on"); }, 180000);
+    } else { chat.appendChild(node); while (chat.children.length > 80) chat.removeChild(chat.firstChild); chat.scrollTop = chat.scrollHeight; }
+  }
+  function capturaEnChat(blob, titulo, fuente, aHolo) {
+    var url = URL.createObjectURL(blob);
+    imagenEnChat({ url: url, titulo: titulo, fuente: fuente, ancha: true });
+    var last = chat.lastChild;
+    if (last && last.classList && last.classList.contains("im")) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "mini"; b.setAttribute("data-t", "💾 Guardar");
+      b.addEventListener("click", function () { descargarBlob(blob, "captura_pc_" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + (/jpeg/.test(blob.type) ? ".jpg" : ".png")); });
+      last.appendChild(b);
+    }
+    if (aHolo) mostrarImg(url, 25, true);
+    return url;
+  }
+  function pcScreenshotUI() {
+    var tk = pcTk();
+    return fetch(PC_URL + "/screenshot?token=" + encodeURIComponent(tk), { headers: { "x-token": tk } }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status); return r.blob();
+    }).then(function (blob) {
+      capturaEnChat(blob, "Captura de la PC", "PC", true);
+      return { ok: true, hecho: "Captura mostrada en el holograma y en el chat (se puede guardar con el botón)." };
+    });
+  }
+  function mostrarJpegChat(b64) {
+    try { fetch("data:image/jpeg;base64," + b64).then(function (r) { return r.blob(); }).then(function (b) { capturaEnChat(b, "Pantalla de la PC", "PC", false); }); } catch (e) {}
+  }
+  function iconoArch(n) {
+    return /\.(mp3|m4a|wav|flac|ogg|opus|aac)$/i.test(n) ? "🎵" : /\.(mp4|mkv|webm|mov|avi|3gp)$/i.test(n) ? "🎬" : /\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(n) ? "🖼️" : /\.pdf$/i.test(n) ? "📕" : /\.(zip|rar|7z)$/i.test(n) ? "🗜️" : "📄";
+  }
+  function esMedia(n) { return /\.(mp3|m4a|wav|flac|ogg|opus|aac|mp4|mkv|webm|mov|avi|3gp)$/i.test(n); }
+  function explorador(carpeta, items) {
+    var d = document.createElement("div"); d.className = "m n xp";
+    var base = String(carpeta || "").replace(/[\\\/]+$/, ""), sep = (base.indexOf("\\") >= 0 && base.indexOf("/") < 0) ? "\\" : "/";
+    var t = document.createElement("div"); t.className = "cap"; t.textContent = "📂 " + (carpeta || "PC") + " · " + items.length + (items.length === 1 ? " elemento" : " elementos"); d.appendChild(t);
+    function abrirCarpeta(r) { pc.listar(r).then(function (j) { if (j && j.ok) explorador(r, j.items || []); else msg("e", (j && j.error) || MSG_PC); }); }
+    var padre = base.replace(/[\\\/][^\\\/]*$/, "");
+    if (base && padre && padre !== base && /[\\\/]/.test(base)) {
+      var up = document.createElement("button"); up.type = "button"; up.className = "xi"; up.textContent = "⬆️ Carpeta superior";
+      up.addEventListener("click", function () { abrirCarpeta(padre); }); d.appendChild(up);
+    }
+    items.slice(0, 60).forEach(function (it) {
+      var esC = it.tipo === "carpeta", ruta = it.ruta || (base + sep + it.nombre);
+      var fila = document.createElement("div"); fila.className = "xr";
+      var b = document.createElement("button"); b.type = "button"; b.className = "xi";
+      b.textContent = (esC ? "📁 " : iconoArch(it.nombre) + " ") + it.nombre + (!esC && it.tamano != null ? " · " + fmtTam(it.tamano) : "");
+      b.addEventListener("click", function () { if (esC) abrirCarpeta(ruta); else traerArchivo({ ruta: ruta, accion: "traer" }); });
+      fila.appendChild(b);
+      if (!esC && esMedia(it.nombre)) {
+        var s = document.createElement("button"); s.type = "button"; s.className = "xs"; s.title = "Reproducir en la PC"; s.textContent = "💻";
+        s.addEventListener("click", function () { pcReproducir({ ruta: ruta }).then(function (r) { msg(r.ok ? "n" : "e", r.hecho || r.error); }); }); fila.appendChild(s);
+      }
+      d.appendChild(fila);
+    });
+    if (items.length > 60) { var mas = document.createElement("div"); mas.className = "cap"; mas.textContent = "…y " + (items.length - 60) + " más. Pídeme buscar algo en concreto."; d.appendChild(mas); }
+    ponerTarjeta(d);
+  }
+  function tarjetaDescarga(nombre) {
+    var d = document.createElement("div"); d.className = "m n fl";
+    var t = document.createElement("div"); t.className = "ft"; t.textContent = iconoArch(nombre) + " " + nombre;
+    var bar = document.createElement("div"); bar.className = "fb"; var fill = document.createElement("i"); bar.appendChild(fill);
+    var st = document.createElement("div"); st.className = "cap"; st.textContent = "Pidiéndolo a la PC…";
+    d.appendChild(t); d.appendChild(bar); d.appendChild(st); ponerTarjeta(d);
+    return {
+      prog: function (r, tot) { fill.style.width = (tot ? Math.min(100, r / tot * 100) : 60) + "%"; st.textContent = fmtTam(r) + (tot ? " de " + fmtTam(tot) : ""); },
+      listo: function (blob, nom) {
+        bar.remove(); st.textContent = fmtTam(blob.size) + " · en tu celular";
+        var fila = document.createElement("div"); fila.className = "fa";
+        var g = document.createElement("button"); g.type = "button"; g.className = "mini"; g.textContent = "💾 Guardar"; g.addEventListener("click", function () { descargarBlob(blob, nom); }); fila.appendChild(g);
+        try { var f = new File([blob], nom, { type: blob.type || "application/octet-stream" }); if (navigator.canShare && navigator.canShare({ files: [f] })) { var c = document.createElement("button"); c.type = "button"; c.className = "mini"; c.textContent = "📤 Compartir"; c.addEventListener("click", function () { navigator.share({ files: [f], title: nom }).catch(function () {}); }); fila.appendChild(c); } } catch (e) {}
+        d.appendChild(fila);
+      },
+      error: function (m) { bar.remove(); st.textContent = "❌ " + m; }
+    };
+  }
+  var MAXTRAER = 400 * 1048576;
+  function pcBlob(ruta, cb) {
+    return fetch(pc.archivoUrl(ruta), { headers: { "x-token": pcTk() } }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 404 ? "no existe ese archivo" : "HTTP " + r.status);
+      var total = +r.headers.get("content-length") || 0, tipo = r.headers.get("content-type") || "";
+      if (total > MAXTRAER) throw new Error("pesa " + fmtTam(total) + " y el máximo es " + fmtTam(MAXTRAER));
+      if (!r.body || !r.body.getReader) return r.blob().then(function (b) { return { blob: b, tipo: tipo }; });
+      var rd = r.body.getReader(), partes = [], rec = 0;
+      function paso() { return rd.read().then(function (x) { if (x.done) return { blob: new Blob(partes, { type: tipo }), tipo: tipo }; partes.push(x.value); rec += x.value.length; if (cb) cb(rec, total); return paso(); }); }
+      return paso();
+    });
+  }
+  function traerArchivo(a) {
+    var ruta = String((a && a.ruta) || "").trim(), acc = (a && a.accion) || "traer";
+    if (!ruta) return Promise.resolve({ ok: false, error: "Falta la ruta del archivo. Usa pc_listar para verla." });
+    var nombre = nombreDe(ruta), tj = tarjetaDescarga(nombre);
+    return pcBlob(ruta, tj.prog).then(function (x) {
+      var blob = x.blob, img = /^image\//.test(blob.type) || /\.(jpe?g|png|gif|webp|bmp)$/i.test(nombre), av = esMedia(nombre) || /^(audio|video)\//.test(blob.type);
+      tj.listo(blob, nombre);
+      if (img) { capturaEnChat(blob, nombre, "PC", true); if (acc === "traer") descargarBlob(blob, nombre); return { ok: true, hecho: "«" + nombre + "» (" + fmtTam(blob.size) + ") ya está en tu celular y la muestro en el holograma." }; }
+      if (av) {
+        cargarMedia([new File([blob], nombre, { type: blob.type || "" })]);
+        if (acc === "traer") descargarBlob(blob, nombre);
+        return { ok: true, hecho: "«" + nombre + "» (" + fmtTam(blob.size) + ") ya está en tu celular y se está reproduciendo." };
+      }
+      descargarBlob(blob, nombre);
+      return { ok: true, hecho: "«" + nombre + "» (" + fmtTam(blob.size) + ") quedó guardado en tu celular." };
+    }).catch(function (e) { tj.error(e && e.message || "error"); return { ok: false, error: "No pude traer el archivo: " + (e && e.message) }; });
+  }
+  function pcReproducir(a) {
+    var ruta = String((a && a.ruta) || "").trim();
+    if (!ruta) return Promise.resolve({ ok: false, error: "Falta la ruta del archivo." });
+    if (/["&|;<>`\r\n]/.test(ruta)) return Promise.resolve({ ok: false, error: "La ruta tiene caracteres que no puedo usar." });
+    return pc.terminal("explorer.exe \"" + ruta + "\"").then(function (j) {
+      if (!j || j.ok === false) return { ok: false, error: (j && j.error) || MSG_PC };
+      return { ok: true, hecho: "Abrí «" + nombreDe(ruta) + "» en la PC con su programa predeterminado." };
+    }).catch(function () { return { ok: false, error: MSG_PC }; });
+  }
+  // ---- OpenCode: tareas largas con contador y botón para dejar de esperar ----
+  function ocEnviar(prompt, cwd, titulo) {
+    var tk = pcTk(), ctl = new AbortController(), t0 = Date.now();
+    var qs = "prompt=" + encodeURIComponent(prompt) + "&token=" + encodeURIComponent(tk) + (cwd ? "&cwd=" + encodeURIComponent(cwd) : "");
+    var cb = chip("🤖 " + titulo + "… 0 s · toca para dejar de esperar", function () { ctl.abort(); }, "oc");
+    var iv = setInterval(function () { if (cb.parentNode) cb.textContent = "🤖 " + titulo + "… " + Math.round((Date.now() - t0) / 1000) + " s · toca para dejar de esperar"; }, 1000);
+    var lim = setTimeout(function () { ctl.abort(); }, 20 * 60 * 1000); fijar("procesando");
+    return fetch(PC_URL + "/opencode?" + qs, { headers: { "x-token": tk }, signal: ctl.signal }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      return { ok: true, hecho: String(j.output || "").trim() || "OpenCode terminó sin salida." };
+    }).catch(function (e) { return { ok: false, error: e && e.name === "AbortError" ? "Dejé de esperar a OpenCode (puede seguir trabajando en la PC)." : MSG_PC }; }).then(function (r) {
+      clearInterval(iv); clearTimeout(lim); if (cb.parentNode) cb.remove(); fijar(r.ok ? "respuesta" : "error"); setTimeout(function () { fijar("reposo"); }, 2500); return r;
+    });
+  }
+  function pcOrdenar(a) {
+    var carpeta = String((a && a.carpeta) || "escritorio").trim(), crit = String((a && a.criterio) || "por tipo de archivo").trim();
+    if (/["&|;<>`]/.test(carpeta + crit)) return Promise.resolve({ ok: false, error: "Hay caracteres que no puedo usar en la carpeta o el criterio." });
+    var base = "Trabaja SOLO dentro de la carpeta «" + carpeta + "» del usuario de Windows (escritorio = Desktop, documentos = Documents, descargas = Downloads) y no salgas de ella. ";
+    return ocEnviar(base + "Analiza su contenido y propone cómo ordenarla " + crit + ". NO muevas, renombres ni borres nada todavía. Responde en español, máximo 8 líneas: cuántos archivos hay, qué carpetas nuevas crearías y cuántos archivos irían a cada una.", null, "Analizando «" + carpeta + "»").then(function (r) {
+      if (!r.ok) return r;
+      chip("✅ Sí, ordenar «" + carpeta + "»", function () {
+        ocEnviar(base + "Ejecuta el orden " + crit + " que propusiste: crea las carpetas necesarias y MUEVE los archivos. Nunca borres ni sobrescribas (si un nombre se repite, agrega un número). No toques accesos directos ni archivos del sistema. Al terminar guarda el registro de cada movimiento (origen → destino) en «_nexo_deshacer.txt» dentro de la carpeta y resume en máximo 6 líneas qué hiciste.", null, "Ordenando «" + carpeta + "»").then(function (r2) { mostrarResultado(r2.ok ? { ok: true, hecho: "Listo. " + resumenVoz(r2.hecho) } : r2); });
+      }, "ordenar");
+      chip("✖ No ordenar", function () { msg("n", "Listo, no toqué nada."); }, "ordenarno");
+      return { ok: true, hecho: "Plan de OpenCode: " + r.hecho + "\n\nMostré los botones «Sí, ordenar» y «No ordenar». Resume el plan en una frase y pregunta si lo ejecutamos. NO digas que ya ordenaste." };
+    });
+  }
+  // ---- NEXO le pide a OpenCode que lo mejore y se actualiza solo ----
+  function nexoProyecto(a) {
+    var r = String((a && a.ruta) || "").trim();
+    if (!r) { var c = ls("nexo_proy_cwd"); return Promise.resolve(c ? { ok: true, hecho: "Mi proyecto está en: " + c } : { ok: false, error: "Aún no tengo la carpeta de mi proyecto." }); }
+    if (/["&|;<>`]/.test(r)) return Promise.resolve({ ok: false, error: "La ruta tiene caracteres que no puedo usar." });
+    ls("nexo_proy_cwd", r); return Promise.resolve({ ok: true, hecho: "Guardé la carpeta de mi proyecto: " + r });
+  }
+  function swVersion() { return fetch("sw.js?_=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.text(); }).then(function (t) { var m = t.match(/const C = "([^"]+)"/); return m ? m[1] : null; }); }
+  swVersion().then(function (v) { VER0 = v; }).catch(function () {});
+  function esperarActualizacion() {
+    var base = VER0, t0 = Date.now();
+    chip("🔄 Actualizarme ahora", function () { location.reload(); }, "actu");
+    var iv = setInterval(function () {
+      if (Date.now() - t0 > 300000) { clearInterval(iv); return; }
+      swVersion().then(function (v) {
+        if (v && base && v !== base && !ocupado) { clearInterval(iv); mostrarResultado({ ok: true, hecho: "Ya tengo una versión nueva (" + v + "). Me reinicio para estrenarla." }); setTimeout(function () { location.reload(); }, 4500); }
+      }).catch(function () {});
+    }, 10000);
+  }
+  function promptImplementar(tarea) {
+    return "Eres el desarrollador de NEXO AI, una PWA (index.html, style.css, app.js, sw.js, manifest.json) que está en esta carpeta y se publica con GitHub Pages. TAREA: " + tarea + "\n\nREGLAS: 1) Antes de tocar nada haz una copia de seguridad con git: `git add -A`, `git commit -m \"backup antes de cambio de NEXO\" --allow-empty` y `git tag nexo-backup-AAAAMMDD-HHMM`. 2) Haz el cambio mínimo necesario sin romper lo que ya funciona. 3) En sw.js sube en 1 el número de la versión del caché (const C = \"nexo-vNN\"). 4) Valida con `node --check app.js`; si falla, corrígelo o revierte. 5) Si todo está bien: `git add -A`, `git commit -m \"NEXO: <resumen corto>\"` y `git push`. Si el push falla, dilo. 6) No borres archivos ni toques claves o tokens. Responde en español, máximo 8 líneas: qué cambiaste, la nueva versión del caché y si se subió a GitHub.";
+  }
+  function lanzarConCuenta(titulo, ejecutar) {
+    var n = 6, cancelado = false, iv, cb = chip("✖ Cancelar envío a OpenCode (6)", function () { cancelado = true; clearInterval(iv); msg("n", "Cancelado, no se envió nada a OpenCode."); }, "impl");
+    iv = setInterval(function () {
+      if (cancelado) { clearInterval(iv); return; }
+      n--; if (n <= 0) { clearInterval(iv); if (cb.parentNode) cb.remove(); ejecutar(); } else if (cb.parentNode) cb.textContent = "✖ Cancelar envío a OpenCode (" + n + ")"; else clearInterval(iv);
+    }, 1000);
+  }
+  function opencodeImplementar(a) {
+    var tarea = String((a && a.tarea) || "").trim(), cwd = ls("nexo_proy_cwd");
+    if (!tarea) return Promise.resolve({ ok: false, error: "Falta describir qué implementar." });
+    if (!a || a.aprobado !== true) return Promise.resolve({ ok: false, error: "El usuario todavía no aprobó una opción. Propón 3 o 4 ideas y espera a que diga cuál." });
+    if (!cwd) return Promise.resolve({ ok: false, error: "No sé en qué carpeta de la PC está mi proyecto. Pídele al usuario la ruta (por ejemplo C:\\Users\\...\\nexo) y guárdala con nexo_proyecto." });
+    lanzarConCuenta("implementar", function () {
+      ocEnviar(promptImplementar(tarea), cwd, "OpenCode implementando").then(function (r) {
+        if (!r.ok) { mostrarResultado(r); return; }
+        mostrarResultado({ ok: true, hecho: "OpenCode terminó. " + resumenVoz(r.hecho) }); esperarActualizacion();
+      });
+    });
+    return Promise.resolve({ ok: true, hecho: "Se enviará a OpenCode en 6 segundos (el usuario puede cancelar con el botón). Dile en una frase qué le pediste: «" + tarea.slice(0, 140) + "». NO digas que ya está implementado." });
+  }
+  function opencodeRevertir(a) {
+    var cwd = ls("nexo_proy_cwd");
+    if (!a || a.aprobado !== true) return Promise.resolve({ ok: false, error: "Pregunta primero si el usuario quiere volver a la versión anterior." });
+    if (!cwd) return Promise.resolve({ ok: false, error: "No sé en qué carpeta de la PC está mi proyecto (usa nexo_proyecto)." });
+    lanzarConCuenta("revertir", function () {
+      ocEnviar("Eres el desarrollador de NEXO AI (PWA en esta carpeta, publicada con GitHub Pages). El último cambio dejó la app mal. Vuelve al estado anterior con git: usa el último tag `nexo-backup-*` (o `git revert HEAD` si no hay) y deja los archivos como estaban. Sube en 1 la versión del caché en sw.js (const C = \"nexo-vNN\"), valida con `node --check app.js`, haz commit y `git push`. Responde en español en máximo 4 líneas.", cwd, "OpenCode revirtiendo").then(function (r) {
+        if (!r.ok) { mostrarResultado(r); return; }
+        mostrarResultado({ ok: true, hecho: "OpenCode terminó. " + resumenVoz(r.hecho) }); esperarActualizacion();
+      });
+    });
+    return Promise.resolve({ ok: true, hecho: "Se le pedirá a OpenCode volver a la versión anterior en 6 segundos (cancelable). NO digas que ya quedó." });
+  }
+  // ---- mini video en el holograma (con sonido y micrófono silenciado) ----
+  var hvid = $("holovid"), vidT = 0;
+  function silenciarMicVideo() {
+    if (micSilencio) return; micAntes = { conv: conv, wake: wakeOn }; micSilencio = true;
+    try { if (conv) apagarConv(""); if (sr) { srCancel = true; sr.abort(); } else if (grabando) detenerMic(false); pararWake(); } catch (e) {}
+  }
+  function restaurarMic() {
+    if (!micSilencio) return; micSilencio = false; var m = micAntes; micAntes = null; if (!m) return;
+    try { if (m.conv) { conv = true; convWake = false; sinVoz = 0; marcarConv(); pantalla(true); if (!ocupado) escuchar(); } else if (m.wake && wakeOn) programarWake(700); } catch (e) {}
+  }
+  function cerrarVideo() {
+    clearTimeout(vidT); try { hvid.pause(); } catch (e) {} hvid.onended = null; hvid.onerror = null; hvid.onplaying = null;
+    hvid.removeAttribute("src"); try { hvid.load(); } catch (e) {} document.body.classList.remove("vidmode"); restaurarMic();
+  }
+  hvid.addEventListener("click", cerrarVideo);
+  function buscarVideoPexels(q) {
+    var k = ls("nexo_pexels");
+    if (!k) {
+      chip("🔑 Poner clave de Pexels", function () { var v = prompt("Pega tu clave gratis de Pexels (pexels.com/api):"); if (v && v.trim()) { ls("nexo_pexels", v.trim()); msg("n", "Clave guardada. Pídeme el video otra vez."); } }, "pexels");
+      return Promise.resolve({ error: "Para buscar videos en internet necesito una clave gratis de Pexels (pexels.com/api). Dejé un botón para pegarla." });
+    }
+    return fetch("https://api.pexels.com/videos/search?per_page=8&orientation=portrait&query=" + encodeURIComponent(q), { headers: { Authorization: k } }).then(function (r) {
+      if (!r.ok) throw new Error("Pexels HTTP " + r.status); return r.json();
+    }).then(function (j) {
+      var vs = (j && j.videos) || []; if (!vs.length) return null;
+      var v = vs[Math.floor(Math.random() * Math.min(5, vs.length))];
+      var fs = (v.video_files || []).filter(function (f) { return /mp4/.test(f.file_type || "") && f.width && f.width <= 1100; }).sort(function (x, y) { return Math.abs(x.width - 720) - Math.abs(y.width - 720); });
+      var f = fs[0] || (v.video_files || [])[0]; return f ? { url: f.link, titulo: "Pexels: " + q } : null;
+    }).catch(function (e) { return { error: "No pude buscar el video: " + e.message }; });
+  }
+  function mostrarVideo(a) {
+    var q = String((a && a.consulta) || "").trim(), origen = (a && a.origen) || "web", secs = a && a.segundos !== undefined ? +a.segundos : 30, sonido = !(a && a.sonido === false);
+    if (!q) return Promise.resolve({ ok: false, error: "Falta qué video mostrar." });
+    var p = origen === "pc" ? pcBlob(q).then(function (x) { return { url: URL.createObjectURL(x.blob), titulo: nombreDe(q) }; })
+      : origen === "url" ? Promise.resolve(/^https:\/\//.test(q) ? { url: q, titulo: "video" } : { error: "Solo acepto enlaces https." }) : buscarVideoPexels(q);
+    return p.then(function (v) {
+      if (!v) return { ok: false, error: "No encontré un video para eso." };
+      if (v.error) return { ok: false, error: v.error };
+      return new Promise(function (ok) {
+        cerrarVideo(); ocultarImg(); if (sonido) silenciarMicVideo();
+        var listo = false, falla = setTimeout(function () { if (!listo) { cerrarVideo(); ok({ ok: false, error: "El video tardó demasiado en cargar." }); } }, 20000);
+        hvid.onerror = function () { clearTimeout(falla); cerrarVideo(); if (!listo) ok({ ok: false, error: "No pude reproducir ese video." }); };
+        hvid.onplaying = function () {
+          if (listo) return; listo = true; clearTimeout(falla); document.body.classList.add("vidmode");
+          if (secs > 0) vidT = setTimeout(cerrarVideo, secs * 1000);
+          if (sonido) setTimeout(function () { if (typeof hvid.webkitAudioDecodedByteCount === "number" && hvid.webkitAudioDecodedByteCount === 0 && !hvid.muted) msg("n", "Este clip no trae sonido."); }, 1800);
+          ok({ ok: true, hecho: "Mostrando «" + v.titulo + "» en el holograma" + (sonido ? ", con su sonido y el micrófono silenciado hasta que termine." : ".") });
+        };
+        hvid.onended = function () { if (!hvid.loop) cerrarVideo(); };
+        hvid.src = v.url; hvid.muted = !sonido; hvid.loop = !!(a && a.bucle); hvid.playsInline = true;
+        var pr = hvid.play();
+        if (pr && pr.catch) pr.catch(function () { if (!sonido) return; hvid.muted = true; restaurarMic(); msg("n", "El navegador bloqueó el sonido; lo muestro sin audio."); try { hvid.play(); } catch (e) {} });
+      });
+    }).catch(function (e) { return { ok: false, error: "No pude mostrar el video: " + (e && e.message) }; });
+  }
+  window.nexoPC = { pcScreenshotUI: pcScreenshotUI, traerArchivo: traerArchivo, explorador: explorador, pcReproducir: pcReproducir, pcOrdenar: pcOrdenar, mostrarVideo: mostrarVideo, cerrarVideo: cerrarVideo, opencodeImplementar: opencodeImplementar, opencodeRevertir: opencodeRevertir, nexoProyecto: nexoProyecto, ocEnviar: ocEnviar, estadoMic: function () { return { silencio: micSilencio }; } };
+
 
   // ---------- Memoria semántica (hechos + embeddings, todo en este navegador) ----------
   var MEMMAX = 300, EMB = "gemini-embedding-001", memTop = null, embFalla = 0, embTmr = 0;
@@ -1472,7 +1748,7 @@
     fijar("escucha"); pulso = 1; etiqueta.textContent = resp;
     if (window.speechSynthesis && $("vozon").checked) frase(resp, function () { escuchar(); }); else setTimeout(escuchar, 350);
   }
-  function iniciarWake() {
+  function iniciarWake() { if (micSilencio) return;
     if (wakeSR) return;
     var r = new SR(), err = "";
     wakeSR = r; r.lang = /^es/i.test(navigator.language || "") ? navigator.language : "es-ES"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
@@ -2177,6 +2453,7 @@
         if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
         if (j.bloqueada) return { ok: true, hecho: "La ventana activa (" + (j.ventana && j.ventana.proceso || "?") + ") está en la lista privada, no la miro." };
         if (!clave) return { ok: false, error: "Necesito la clave de Gemini para analizar la imagen." };
+        mostrarJpegChat(j.jpeg);
         var q = String(pregunta || "").trim() || "Describe brevemente qué se ve en la pantalla y qué está haciendo el usuario.";
         var ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, 25000);
         var cuerpo = { contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: j.jpeg } }, { text: "Captura de la pantalla del PC del usuario. Ventana activa: " + (j.ventana.proceso || "?") + " — «" + (j.ventana.titulo || "") + "». " + q + " Responde en español, breve y concreto. Si ves contraseñas, números de tarjeta o datos privados, no los repitas." }] }] };
@@ -2302,10 +2579,11 @@
     if (n === "pc_estado") return pc.estado().then(function (j) { return j && j.ok ? { ok: true, hecho: "PC disponible. Carpetas: " + (j.bases || []).join(", ") } : { ok: false, error: (j && j.error) || MSG_PC }; });
     if (n === "pc_listar") return pc.listar(a.carpeta).then(function (j) {
       if (!j || !j.ok) return { ok: false, error: (j && j.error) || MSG_PC };
+      explorador(a.carpeta || "", j.items || []);
       var lines = (j.items || []).map(function (it) { return (it.tipo === "carpeta" ? "📁 " : "📄 ") + it.nombre + (it.tamano != null ? " (" + it.tamano + " B)" : ""); });
       return { ok: true, hecho: "Contenido de " + (a.carpeta || "") + ":\n" + lines.join("\n"), items: j.items };
     });
-    if (n === "pc_archivo") return pc.descargar(a.ruta).then(function (j) { return j; }).catch(function (e) { return { ok: false, error: "Error descargando: " + (e && e.message) }; });
+    if (n === "pc_archivo") return traerArchivo({ ruta: a.ruta, accion: "traer" });
     if (n === "pc_volumen") {
       var qs = "";
       if (a.nivel !== undefined && a.nivel !== null) qs += "nivel=" + encodeURIComponent(a.nivel) + "&";
@@ -2343,7 +2621,14 @@
     if (n === "pc_portapapeles_leer") return pc.clipboardLeer().then(function (j) { return j && j.ok ? { ok: true, hecho: "Portapapeles: " + (j.texto || "(vacio)") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_portapapeles_escribir") return pc.clipboardEscribir(a.texto).then(function (j) { return j && j.ok ? { ok: true, hecho: "Portapapeles actualizado." } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_ver_pantalla") return pc.pantalla(a.pregunta).catch(function (e) { return { ok: false, error: /Gemini/.test(e && e.message || "") ? e.message : MSG_PC }; });
-    if (n === "pc_screenshot") return pc.screenshot().catch(function (e) { return { ok: false, error: "Error: " + (e && e.message) }; });
+    if (n === "pc_screenshot") return pcScreenshotUI().catch(function (e) { return { ok: false, error: "No pude traer la captura: " + (e && e.message) }; });
+    if (n === "pc_traer") return traerArchivo(a);
+    if (n === "pc_reproducir") return pcReproducir(a);
+    if (n === "pc_ordenar") return pcOrdenar(a);
+    if (n === "mostrar_video") return mostrarVideo(a);
+    if (n === "opencode_implementar") return opencodeImplementar(a);
+    if (n === "opencode_revertir") return opencodeRevertir(a);
+    if (n === "nexo_proyecto") return nexoProyecto(a);
     if (n === "pc_media") return pc.mediaPC(a.accion).then(function (j) { return j && j.ok ? { ok: true, hecho: "Media: " + a.accion } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_tts") return pc.ttsPC(a.texto).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "La PC hablo.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_procesos") return pc.procesos().then(function (j) {

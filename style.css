@@ -155,3 +155,24 @@ body.holo #sub, body.holo #slotU, body.holo #acc { display: none; }
 body.holo main { padding-top: 14px; }
 body.holo #pruebas { opacity: .45; }
 body.holo #mini button { opacity: .5; }
+
+/* ---- v2.6: capturas anchas, bandeja de tarjetas, archivos y video en el holograma ---- */
+body.imgwide #holoimg { width: min(96vw, 720px); height: auto; max-height: 62vh; -webkit-mask-image: none; mask-image: none; border-radius: 14px; filter: none; background: #05030c; box-shadow: 0 0 34px rgba(var(--rgb), .4); }
+#holovid { position: fixed; left: 50%; top: var(--hcy, 36%); width: calc(var(--hr, 170px) * 2 * .95); height: calc(var(--hr, 170px) * 2 * .95); transform: translate(-50%, -50%) scale(.94); object-fit: cover; opacity: 0; pointer-events: none; z-index: 3; border-radius: 50%; background: #000; transition: opacity .7s, transform .7s; -webkit-mask-image: radial-gradient(circle at center, #000 58%, transparent 74%); mask-image: radial-gradient(circle at center, #000 58%, transparent 74%); filter: saturate(1.15) drop-shadow(0 0 18px rgba(var(--rgb), .45)); }
+body.vidmode #holovid { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; cursor: pointer; }
+body.vidmode #neuro, body.vidmode #lienzo { opacity: .3; }
+#tarjeta { position: fixed; left: 50%; bottom: 196px; transform: translateX(-50%); width: min(94vw, 520px); max-height: 44vh; overflow-y: auto; z-index: 6; display: none; padding: 10px; border-radius: 18px; background: rgba(14,10,28,.95); border: 1px solid rgba(var(--rgb), .42); box-shadow: 0 0 34px rgba(var(--rgb), .25); }
+#tarjeta.on { display: block; }
+#tarjeta .tx { position: sticky; top: 0; float: right; width: 30px; height: 30px; padding: 0; margin: 0 0 4px 6px; border-radius: 50%; z-index: 2; background: rgba(14,10,28,.95); }
+#tarjeta .m { max-width: 100%; border: 0; background: transparent; padding: 2px 0; }
+.xp .cap, .fl .cap { font-size: .74rem; color: var(--apagado); margin: 2px 0 6px; }
+.xr { display: flex; gap: 6px; align-items: stretch; }
+.xi { display: block; width: 100%; text-align: left; margin: 3px 0; padding: 8px 12px; border-radius: 12px; font-size: .92rem; border-color: rgba(var(--rgb), .2); overflow-wrap: anywhere; }
+.xs { flex: none; width: 42px; margin: 3px 0; padding: 0; border-radius: 12px; border-color: rgba(var(--rgb), .2); }
+.fl .ft { font-weight: 600; overflow-wrap: anywhere; }
+.fb { height: 6px; border-radius: 6px; margin: 8px 0 4px; background: rgba(var(--rgb), .15); overflow: hidden; }
+.fb i { display: block; height: 100%; width: 0; background: rgb(var(--rgb)); box-shadow: 0 0 10px rgb(var(--rgb)); transition: width .2s; }
+.fa { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+button.mini { padding: 6px 12px; font-size: .84rem; border-radius: 12px; border-color: rgba(var(--rgb), .35); }
+.m.im button.mini { margin-top: 6px; }
+button.mini[data-t]::before { content: attr(data-t); }
