@@ -858,6 +858,13 @@
     { name: "opencode_implementar", description: "Le pide a OpenCode que implemente una mejora en el código de NEXO (esta app), la suba a GitHub y NEXO se actualiza sola. Úsala SOLO cuando el usuario ya aprobó explícitamente una opción; en ese caso pon aprobado=true.", parameters: P({ tarea: { type: "string", description: "Qué implementar, bien descrito" }, aprobado: { type: "boolean" } }, ["tarea", "aprobado"]) },
     { name: "opencode_revertir", description: "Le pide a OpenCode volver a la versión anterior de NEXO si un cambio salió mal. Solo con aprobación explícita del usuario (aprobado=true).", parameters: P({ aprobado: { type: "boolean" } }, ["aprobado"]) },
     { name: "nexo_proyecto", description: "Guarda (o consulta si no envías ruta) la carpeta de la PC donde está el código de NEXO.", parameters: P({ ruta: { type: "string" } }) },
+    { name: "sonora_reproducir", description: "Busca y reproduce una canción en Sonora, el reproductor de música de la PC del usuario. Úsala cuando pida poner música en la PC o en Sonora.", parameters: P({ q: { type: "string", description: "Canción, artista o lo que quiera escuchar" } }, ["q"]) },
+    { name: "sonora_cola", description: "Agrega una canción a la cola de Sonora sin interrumpir la que suena.", parameters: P({ q: { type: "string" } }, ["q"]) },
+    { name: "sonora_control", description: "Controla Sonora: pausa, play, toggle (alterna pausa/play), siguiente, anterior, parar, mute (silencia o quita el silencio).", parameters: P({ accion: { type: "string", enum: ["pausa", "play", "toggle", "siguiente", "anterior", "parar", "mute"] } }, ["accion"]) },
+    { name: "sonora_volumen", description: "Pone el volumen de Sonora de 0 a 100. Para subir o bajar un poco, primero consulta sonora_estado.", parameters: P({ nivel: { type: "integer" } }, ["nivel"]) },
+    { name: "sonora_estado", description: "Dice qué está sonando en Sonora (canción, artista, si está en pausa, volumen, cola) y muestra un mini control en pantalla.", parameters: P({}) },
+    { name: "sonora_abrir", description: "Abre el programa Sonora en la PC si no está abierto (necesita la ruta guardada con sonora_ruta).", parameters: P({}) },
+    { name: "sonora_ruta", description: "Guarda (o consulta si no envías ruta) dónde está el programa Sonora (.exe) en la PC.", parameters: P({ ruta: { type: "string" } }) },
     { name: "pc_media", description: "Controla la reproduccion de medios en la PC: play, pause, siguiente, anterior, subir, bajar (volumen multimedia).", parameters: P({ accion: { type: "string", enum: ["play", "pause", "playpause", "siguiente", "anterior", "subir", "bajar"] } }, ["accion"]) },
     { name: "pc_tts", description: "Hace que la PC hable un texto en voz alta (texto a voz).", parameters: P({ texto: { type: "string" } }, ["texto"]) },
     { name: "pc_procesos", description: "Lista los procesos de la PC con CPU y memoria (top 25).", parameters: P({}) },
@@ -875,8 +882,9 @@
   SYS.parts[0].text += " TV Roku: la controlas con roku_tecla, roku_app, roku_volumen, roku_buscar, roku_escribir, roku_estado y roku_energia. El volumen va por pasos, no por porcentaje, y no ves la pantalla de la TV, solo la app activa y lo que se reproduce. Para apagar la TV pregunta primero y usa confirmado=true solo cuando el usuario diga que sí. Si una herramienta de la TV dice que no llega al puente, díselo en una frase: inicia el puente en Termux con ./start_bridge.sh. Para poner una canción o video de YouTube en la TV usa roku_youtube (no roku_buscar). Para abrir algo en la TV usa roku_app; para abrir una app en el celular usa abrir_app_movil.";
   SYS.parts[0].text += " PC: la controlas con pc_estado, pc_listar, pc_archivo, pc_descargar_carpeta, pc_subir, pc_volumen, pc_abrir_url, pc_abrir_app, pc_buscar, pc_info, pc_opencode, pc_portapapeles_leer, pc_portapapeles_escribir, pc_screenshot, pc_ver_pantalla (mirar y analizar la pantalla de la PC), mostrar_imagen (foto real en el holograma y el chat), pc_media, pc_tts, pc_procesos, pc_matar, pc_ventanas, pc_ventana, pc_buscar_archivos, pc_brillo, pc_notificaciones, pc_terminal, pc_wol, pc_backup y pc_sesiones_opencode. Usa pc_portapapeles para copiar/pegar entre PC y celular; pc_screenshot para ver la pantalla de la PC; pc_media para controlar reproduccion (play/pause/siguiente/anterior); pc_tts para que la PC hable; pc_procesos y pc_matar para gestionar procesos; pc_ventanas y pc_ventana para gestionar ventanas; pc_buscar_archivos para buscar archivos; pc_brillo para el brillo; pc_notificaciones para leer mensajes de la PC; pc_terminal para ejecutar comandos; pc_wol para encender equipos por red; pc_backup para copiar carpetas; pc_sesiones_opencode para listar sesiones. El puente corre en la PC en el puerto 8766; si no responde, dilo en una frase: inicia pc_bridge.js en la PC.";
   SYS.parts[0].text += " Archivos y video de la PC: pc_listar muestra una tarjeta tocable en pantalla; pc_traer trae un archivo al celular (traer = guardarlo y, si es imagen, canción o video, también mostrarlo o reproducirlo; ver = solo mostrarlo); pc_reproducir abre un archivo en la PC con su reproductor; pc_ordenar ordena una carpeta con OpenCode (primero un plan y espera la confirmación; nunca borra); mostrar_video pone un mini video en el holograma y silencia el micrófono mientras suena. AUTOMEJORA: cuando el usuario te pregunte qué quiere que te implementen o qué mejoras podrías tener, sugiere 3 o 4 opciones concretas y realistas según lo que ya sabes hacer; solo cuando él apruebe una opción de forma explícita (por ejemplo «sí, dile a OpenCode que lo implemente») llama a opencode_implementar con aprobado=true y la tarea bien descrita. Tras terminar, OpenCode sube los cambios y tú te actualizas sola; si algo sale mal, ofrece opencode_revertir.";
+  SYS.parts[0].text += " SONORA es el reproductor de música de la PC del usuario (un programa suyo con API local). Para poner, agregar a la cola, pausar, saltar, silenciar, cambiar el volumen o saber qué suena en la PC usa las herramientas sonora_*; no uses pc_media para eso salvo que Sonora no esté disponible. Si responde que no está abierta, ofrece abrirla con sonora_abrir (si no tienes la ruta, pídela y guárdala con sonora_ruta).";
   SYS.parts[0].text += " Sé preciso con lo que haces: nunca digas que guardaste, recordaste, aprendiste o ejecutaste algo si no llamaste a la herramienta que lo hace (para guardar datos usa recordar); no tienes acceso al brillo ni al volumen del sistema del celular desde esta web, solo al de la app y al de tu voz; y no inventes capacidades.";
-  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1; NECESITA.pc_listar = 1; NECESITA.pc_ver_pantalla = 1; NECESITA.pc_ordenar = 1; NECESITA.opencode_implementar = 1; NECESITA.opencode_revertir = 1; NECESITA.nexo_proyecto = 1; NECESITA.buscar_recuerdos = 1;
+  NECESITA.roku_estado = 1; NECESITA.roku_energia = 1; NECESITA.bateria = 1; NECESITA.ubicacion = 1; NECESITA.nota_leer = 1; NECESITA.temporizadores = 1; NECESITA.pc_listar = 1; NECESITA.pc_ver_pantalla = 1; NECESITA.pc_ordenar = 1; NECESITA.opencode_implementar = 1; NECESITA.opencode_revertir = 1; NECESITA.nexo_proyecto = 1; NECESITA.sonora_estado = 1; NECESITA.sonora_abrir = 1; NECESITA.sonora_ruta = 1; NECESITA.buscar_recuerdos = 1;
   SYS.parts[0].text += " Respondes como asistente de voz cálido y con personalidad: una o dos frases cortas y naturales (tres como máximo), sin listas, markdown ni emojis, porque se leen en voz alta; empieza por la respuesta, sin rodeos. Después de usar herramientas cuenta en una frase lo que hiciste; nunca respondas solo «Listo». Tus partículas forman cualquier cosa: palabras, números y la hora con escribir_con_particulas o mostrar_hora; objetos y animales con forma_con_emoji; dibujos propios con forma_con_trazo; cosas que se mueven (un gato caminando, un pájaro volando, un coche) con figura_animada, o con el parámetro movimiento y la herramienta animar. Del celular puedes: linterna, bateria, vibrar, ubicacion, compartir, copiar, abrir_app_movil, volumen_voz, brillo_app, temporizador (también alarmas a una hora), temporizadores (listar o cancelar), notas (nota_guardar, nota_leer, nota_borrar: listas de compras, ideas, apuntes), contacto (llamar, sms, whatsapp; NEXO deja un botón en pantalla y el usuario confirma con un toque), musica (archivos del celular que el usuario elige: elegir, reproducir, pausar, continuar, siguiente, anterior, detener, volumen) y pedir_archivo para que te muestre una foto, PDF, audio o texto. Para música en internet usa abrir_app_movil con youtube o spotify. Si piden el brillo o el volumen del sistema, o abrir el administrador de archivos, explica que desde una web no es posible y ofrece lo que sí puedes. Usa recordar para datos duraderos del usuario (gustos, nombre, rutinas) y las notas para apuntes y listas.";
   function sysAhora() {
     var t = new Date().toLocaleString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/[  ]/g, " ");
@@ -1629,6 +1637,99 @@
     }).catch(function (e) { return { ok: false, error: "No pude mostrar el video: " + (e && e.message) }; });
   }
   window.nexoPC = { pcScreenshotUI: pcScreenshotUI, traerArchivo: traerArchivo, explorador: explorador, pcReproducir: pcReproducir, pcOrdenar: pcOrdenar, mostrarVideo: mostrarVideo, cerrarVideo: cerrarVideo, opencodeImplementar: opencodeImplementar, opencodeRevertir: opencodeRevertir, nexoProyecto: nexoProyecto, ocEnviar: ocEnviar, estadoMic: function () { return { silencio: micSilencio }; } };
+
+
+
+  // ---------- Sonora: el reproductor de música de la PC (API local en 127.0.0.1:8790) ----------
+  // Sonora escucha solo en la propia PC, así que NEXO le habla a través del puente (pc_terminal) con un comando PowerShell codificado.
+  var sonoraT = 0, sonoraNodo = null, sonoraVol = 50;
+  function psB64(s) { var b = ""; for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); b += String.fromCharCode(c & 255, c >> 8); } return btoa(b); }
+  function psCmd(script) { return "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + psB64(script); }
+  function sonoraCall(met, ruta, params) {
+    var qs = params ? "?" + Object.keys(params).map(function (k) { return k + "=" + encodeURIComponent(params[k]).replace(/'/g, "%27"); }).join("&") : "";
+    var url = "http://127.0.0.1:" + (ls("nexo_sonora_port") || "8790") + ruta + qs;
+    var ps = "$ProgressPreference='SilentlyContinue';try{$r=Invoke-RestMethod -Method " + met + " -Uri '" + url + "' -TimeoutSec 20;if($null -eq $r){'{}'}else{$r|ConvertTo-Json -Compress -Depth 6}}catch{@{ok=$false;sinSonora=$true;error=$_.Exception.Message}|ConvertTo-Json -Compress}";
+    return pc.terminal(psCmd(ps)).then(function (j) {
+      if (!j || j.puente === false) return { ok: false, error: MSG_PC };
+      if (j.ok === false) return { ok: false, error: j.error || MSG_PC };
+      var out = String(j.stdout || "").trim().split(/\r?\n/).filter(Boolean).pop() || "";
+      try { return JSON.parse(out); } catch (e) { return { ok: false, error: "Sonora respondió algo que no entendí: " + (out || j.stderr || "vacío").slice(0, 120) }; }
+    }).catch(function () { return { ok: false, error: MSG_PC }; });
+  }
+  function sonoraRes(r, okMsg) {
+    if (r && r.sinSonora) {
+      var ex = ls("nexo_sonora_exe");
+      if (ex) chip("▶ Abrir Sonora", function () { sonoraAbrir().then(function (x) { mostrarResultado(x); }); }, "sonab");
+      return { ok: false, error: "Sonora no está abierta en la PC." + (ex ? " Dejé un botón para abrirla." : " Si me dices dónde está el programa (la ruta del .exe) lo abro yo.") };
+    }
+    if (!r || r.ok === false) return { ok: false, error: (r && r.error) || MSG_PC };
+    return { ok: true, hecho: okMsg, datos: r };
+  }
+  function sonoraTarjeta(r) {
+    var tr = r.track || r.current, tit = (tr && typeof tr === "object" ? tr.title : null) || r.title || "Sonora", art = (tr && typeof tr === "object" ? tr.artist : null) || r.artist || "";
+    var est = r.loading ? "Cargando…" : r.paused ? "En pausa" : r.playing ? "Sonando" : "Detenida", v = r.volume != null ? r.volume : (r.volumen != null ? r.volumen : null);
+    if (v != null && !isNaN(+v)) sonoraVol = Math.round(+v);
+    var cola = Array.isArray(r.queue) ? r.queue.length : (typeof r.queue === "number" ? r.queue : null);
+    var linea = est + (art && art !== "YouTube" ? " · " + art : "") + (v != null ? " · vol " + sonoraVol + "%" : "") + (r.muted ? " · silenciada" : "") + (cola ? " · cola " + cola : "");
+    if (sonoraNodo && sonoraNodo.d.parentNode) { sonoraNodo.t.textContent = "🎵 " + tit; sonoraNodo.s.textContent = linea; return; }
+    var d = document.createElement("div"); d.className = "m n xp";
+    var t = document.createElement("div"); t.className = "ft"; t.textContent = "🎵 " + tit;
+    var s = document.createElement("div"); s.className = "cap"; s.textContent = linea;
+    var fila = document.createElement("div"); fila.className = "fa";
+    function b(txt, fn) { var x = document.createElement("button"); x.type = "button"; x.className = "mini"; x.textContent = txt; x.addEventListener("click", fn); fila.appendChild(x); }
+    b("⏮", function () { sonoraControl({ accion: "anterior" }); }); b("⏯", function () { sonoraControl({ accion: "toggle" }); }); b("⏭", function () { sonoraControl({ accion: "siguiente" }); });
+    b("🔇", function () { sonoraControl({ accion: "mute" }); });
+    b("−", function () { sonoraVolumen({ nivel: Math.max(0, sonoraVol - 10) }).then(function (x) { if (x.ok) sonoraVol = Math.max(0, sonoraVol - 10); sonoraSeguir(); }); });
+    b("+", function () { sonoraVolumen({ nivel: Math.min(100, sonoraVol + 10) }).then(function (x) { if (x.ok) sonoraVol = Math.min(100, sonoraVol + 10); sonoraSeguir(); }); });
+    d.appendChild(t); d.appendChild(s); d.appendChild(fila); sonoraNodo = { d: d, t: t, s: s }; ponerTarjeta(d);
+  }
+  function sonoraSeguir() {
+    clearTimeout(sonoraT); var n = 0;
+    (function paso() { sonoraT = setTimeout(function () { sonoraCall("GET", "/estado").then(function (r) { if (r && r.ok !== false && !r.sinSonora) { sonoraTarjeta(r); if ((r.loading || (!r.playing && !r.paused)) && ++n < 8) paso(); } }); }, n === 0 ? 1500 : 2500); })();
+  }
+  function sonoraReproducir(a, cola) {
+    var q = String((a && a.q) || "").trim().slice(0, 250);
+    if (!q) return Promise.resolve({ ok: false, error: "Falta qué canción buscar." });
+    return sonoraCall("POST", cola ? "/cola" : "/reproducir", { q: q }).then(function (r) {
+      var x = sonoraRes(r, (cola ? "Agregué a la cola de Sonora: " : "Buscando y reproduciendo en Sonora: ") + q + "."); if (x.ok) sonoraSeguir(); return x;
+    });
+  }
+  function sonoraControl(a) {
+    var acc = ["pausa", "play", "toggle", "siguiente", "anterior", "parar", "mute"], k = a && a.accion;
+    if (acc.indexOf(k) < 0) return Promise.resolve({ ok: false, error: "Acción no válida. Opciones: " + acc.join(", ") + "." });
+    return sonoraCall("POST", "/" + k).then(function (r) { var x = sonoraRes(r, "Listo en Sonora: " + k + "."); if (x.ok) sonoraSeguir(); return x; });
+  }
+  function sonoraVolumen(a) {
+    var n = Math.round(+(a && a.nivel));
+    if (isNaN(n) || n < 0 || n > 100) return Promise.resolve({ ok: false, error: "El volumen debe ser un número de 0 a 100." });
+    return sonoraCall("POST", "/volumen", { nivel: n }).then(function (r) { var x = sonoraRes(r, "Volumen de Sonora al " + n + "%."); if (x.ok) sonoraVol = n; return x; });
+  }
+  function sonoraEstado() {
+    return sonoraCall("GET", "/estado").then(function (r) {
+      var x = sonoraRes(r, ""); if (!x.ok) return x;
+      sonoraTarjeta(r); x.hecho = "Estado de Sonora: " + JSON.stringify(r).slice(0, 700); return x;
+    });
+  }
+  function sonoraRuta(a) {
+    var r = String((a && a.ruta) || "").trim();
+    if (!r) { var c = ls("nexo_sonora_exe"); return Promise.resolve(c ? { ok: true, hecho: "Sonora está en: " + c } : { ok: false, error: "Aún no tengo la ruta de Sonora." }); }
+    if (/["&|;<>`\r\n]/.test(r) || !/\.exe$/i.test(r)) return Promise.resolve({ ok: false, error: "La ruta debe terminar en .exe y no puede llevar comillas ni símbolos raros." });
+    ls("nexo_sonora_exe", r); return Promise.resolve({ ok: true, hecho: "Guardé la ruta de Sonora: " + r });
+  }
+  function sonoraAbrir() {
+    var ex = ls("nexo_sonora_exe");
+    if (!ex) return Promise.resolve({ ok: false, error: "No sé dónde está Sonora. Dime la ruta del programa (por ejemplo C:\\...\\Sonora_ATGVT.exe) y la guardo." });
+    return sonoraCall("GET", "/health").then(function (h) {
+      if (h && h.ok !== false && !h.sinSonora) return { ok: true, hecho: "Sonora ya estaba abierta." };
+      return pc.terminal(psCmd("Start-Process -FilePath '" + ex.replace(/'/g, "''") + "'")).then(function () {
+        return new Promise(function (res) {
+          var n = 0; (function t() { setTimeout(function () { sonoraCall("GET", "/health").then(function (r) {
+            if (r && r.ok !== false && !r.sinSonora) res({ ok: true, hecho: "Abrí Sonora y ya está lista." }); else if (++n < 8) t(); else res({ ok: false, error: "Abrí el programa pero todavía no responde." }); }); }, 2000); })();
+        });
+      });
+    });
+  }
+  window.nexoSonora = { call: sonoraCall, reproducir: sonoraReproducir, control: sonoraControl, volumen: sonoraVolumen, estado: sonoraEstado, ruta: sonoraRuta, abrir: sonoraAbrir };
 
 
   // ---------- Memoria semántica (hechos + embeddings, todo en este navegador) ----------
@@ -2629,6 +2730,13 @@
     if (n === "opencode_implementar") return opencodeImplementar(a);
     if (n === "opencode_revertir") return opencodeRevertir(a);
     if (n === "nexo_proyecto") return nexoProyecto(a);
+    if (n === "sonora_reproducir") return sonoraReproducir(a, false);
+    if (n === "sonora_cola") return sonoraReproducir(a, true);
+    if (n === "sonora_control") return sonoraControl(a);
+    if (n === "sonora_volumen") return sonoraVolumen(a);
+    if (n === "sonora_estado") return sonoraEstado();
+    if (n === "sonora_abrir") return sonoraAbrir();
+    if (n === "sonora_ruta") return sonoraRuta(a);
     if (n === "pc_media") return pc.mediaPC(a.accion).then(function (j) { return j && j.ok ? { ok: true, hecho: "Media: " + a.accion } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_tts") return pc.ttsPC(a.texto).then(function (j) { return j && j.ok ? { ok: true, hecho: (j.hecho || "La PC hablo.") } : { ok: false, error: (j && j.error) || MSG_PC }; }).catch(function (e) { return { ok: false, error: MSG_PC }; });
     if (n === "pc_procesos") return pc.procesos().then(function (j) {
